@@ -170,6 +170,87 @@ std::vector<int> Mesh::neighbours(const int& vertex) const{
     return neighbours;
 }
 
+void Mesh::faceSplit(int faceId, vec3 newSommet) {
+    int A = faces[faceId].vertices[0]; 
+    int C = faces[faceId].vertices[1]; 
+    int B = faces[faceId].vertices[2]; 
+
+    Vertex newVertex = Vertex(newSommet);
+    newVertex.SetFaceRef(faceId);
+    vertices.push_back(newVertex);
+    int P = vertices.size()-1;
+
+    Face PBA = Face({P, B, A});
+    Face PAC = Face({P,A,C});
+    Face PCB = Face({P,C,B});
+
+    int PBAindex = faces.size();
+    int PACindex = faces.size()+1;
+    int PCBindex = faces.size()+2;
+
+
+    std::vector<int> voisinsPBA = {faces[faceId].neighbours[1], PACindex, PCBindex};
+    std::vector<int> voisinsPAC = {faces[faceId].neighbours[2], PCBindex, PBAindex};
+    std::vector<int> voisinsPCB = {faces[faceId].neighbours[0], PBAindex, PACindex};
+
+    PBA.SetNeighbours(voisinsPBA);
+    PAC.SetNeighbours(voisinsPAC);
+    PCB.SetNeighbours(voisinsPCB);
+
+    faces.push_back(PBA);
+    faces.push_back(PAC);
+    faces.push_back(PCB);
+    for (int i=0; i<3; i++) {
+        if (faces[faces[faceId].neighbours[0]].neighbours[i] == faceId)
+            faces[faces[faceId].neighbours[0]].neighbours[i] = PCBindex;
+    }
+    for (int i=0; i<3; i++) {
+        if (faces[faces[faceId].neighbours[1]].neighbours[i] == faceId)
+            faces[faces[faceId].neighbours[1]].neighbours[i] = PBAindex;
+    }
+    for (int i=0; i<3; i++) {
+        if (faces[faces[faceId].neighbours[2]].neighbours[i] == faceId)
+            faces[faces[faceId].neighbours[2]].neighbours[i] = PACindex;
+    }
+    
+    // appel fonction delete faceId
+
+}
+
+void Mesh::edgeSplit(int face1, int face2) {
+    if (face1 < 0 || face2 < 0 ||
+        face1 >= static_cast<int>(faces.size()) ||
+        face2 >= static_cast<int>(faces.size())) {
+        return;
+    }
+
+    int edge1 = -1;
+    int edge2 = -1;
+
+    for (int i = 0; i < 3; ++i) {
+        if (faces[face1].neighbours[i] == face2) {
+            edge1 = i;
+        }
+        if (faces[face2].neighbours[i] == face1) {
+            edge2 = i;
+        }
+    }
+
+    if (edge1 == -1 || edge2 == -1) {
+        return;
+    }
+
+    const int commonVertex1 = faces[face1].vertices[(edge1 + 1) % 3];
+    const int commonVertex2 = faces[face1].vertices[(edge1 + 2) % 3];
+    const int oppositeVertex1 = faces[face1].vertices[edge1];
+    const int oppositeVertex2 = faces[face2].vertices[edge2];
+
+    (void)commonVertex1;
+    (void)commonVertex2;
+    (void)oppositeVertex1;
+    (void)oppositeVertex2;
+}
+
 
 
 

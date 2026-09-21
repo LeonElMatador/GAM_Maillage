@@ -28,5 +28,8 @@ class Mesh{
         
         std::vector<float> laplacian(const std::vector<float>& values) const ;
         std::vector<int> neighbours(const int& vertex) const;
+
+        void faceSplit(int faceId, vec3 newSommet);
+        void edgeSplit(int face1, int face2);
 };
 
