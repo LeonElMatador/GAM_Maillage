@@ -31,5 +31,6 @@ class Mesh{
 
         void faceSplit(int faceId, vec3 newSommet);
         void edgeSplit(int face1, int face2);
+        void deleteFace(int id);
 };
 
