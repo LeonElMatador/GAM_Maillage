@@ -178,6 +178,7 @@ void Mesh::deleteFace(int id){
             } 
         }
     }
+    //TODO reduire les ref de faces des sommets 
     faces.erase(faces.begin() + id);
 }
 
