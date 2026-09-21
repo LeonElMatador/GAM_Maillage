@@ -75,7 +75,7 @@ Mesh Mesh::ReadOFF(const std::string& filePath){
     file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
     std::vector<Vertex> vertices;
-
+ 
     for(size_t i = 0; i<s; i++){
         float x, y, z;
         file >> x >> y >> z;
@@ -170,7 +170,16 @@ std::vector<int> Mesh::neighbours(const int& vertex) const{
     return neighbours;
 }
 
-
+void Mesh::deleteFace(int id){
+    for(int i = 0; i<faces.size(); i++){
+        for(int j = 0; j<3; j++){
+            if(faces[i].neighbours[j]>id){
+                faces[i].neighbours[j]--;
+            } 
+        }
+    }
+    faces.erase(faces.begin() + id);
+}
 
 
 

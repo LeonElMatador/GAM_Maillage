@@ -28,5 +28,7 @@ class Mesh{
         
         std::vector<float> laplacian(const std::vector<float>& values) const ;
         std::vector<int> neighbours(const int& vertex) const;
+
+        void deleteFace(int id);
 };
 
