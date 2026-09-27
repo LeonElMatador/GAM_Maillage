@@ -201,27 +201,26 @@ std::vector<int> Mesh::neighbours(const int& vertex) const{
 }
 
 void Mesh::faceSplit(int faceId, vec3 newSommet) {
-    int A = faces[faceId].vertices[0]; 
-    int C = faces[faceId].vertices[1]; 
-    int B = faces[faceId].vertices[2]; 
+    int A = faces[faceId].vertices[0];
+    int C = faces[faceId].vertices[1];
+    int B = faces[faceId].vertices[2];
 
     Vertex newVertex = Vertex(newSommet);
     vertices.push_back(newVertex);
-    int P = vertices.size()-1;
+    int P = vertices.size() - 1;
 
     Face PBA = Face({P, B, A});
-    Face PAC = Face({P,A,C});
-    Face PCB = Face({P,C,B});
+    Face PAC = Face({P, A, C});
+    Face PCB = Face({P, C, B});
 
     int PBAindex = faces.size();
-    int PACindex = faces.size()+1;
-    int PCBindex = faces.size()+2;
+    int PACindex = faces.size() + 1;
+    int PCBindex = faces.size() + 2;
 
-    newVertex.SetFaceRef(faceId);
     vertices[A].SetFaceRef(PBAindex);
     vertices[B].SetFaceRef(PBAindex);
     vertices[C].SetFaceRef(PACindex);
-
+    newVertex.SetFaceRef(PBAindex);  
 
     std::vector<int> voisinsPBA = {faces[faceId].neighbours[1], PACindex, PCBindex};
     std::vector<int> voisinsPAC = {faces[faceId].neighbours[2], PCBindex, PBAindex};
@@ -234,24 +233,36 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
     faces.push_back(PBA);
     faces.push_back(PAC);
     faces.push_back(PCB);
-    for (int i=0; i<3; i++) {
-        if (faces[faces[faceId].neighbours[0]].neighbours[i] == faceId)
-            faces[faces[faceId].neighbours[0]].neighbours[i] = PCBindex;
-    }
-    for (int i=0; i<3; i++) {
-        if (faces[faces[faceId].neighbours[1]].neighbours[i] == faceId)
-            faces[faces[faceId].neighbours[1]].neighbours[i] = PBAindex;
-    }
-    for (int i=0; i<3; i++) {
-        if (faces[faces[faceId].neighbours[2]].neighbours[i] == faceId)
-            faces[faces[faceId].neighbours[2]].neighbours[i] = PACindex;
-    }
-    
-    // appel fonction delete faceId
 
+
+    int n0 = faces[faceId].neighbours[0];
+    int n1 = faces[faceId].neighbours[1];
+    int n2 = faces[faceId].neighbours[2];
+
+    if (n0 != -1) {
+        for (int i = 0; i < 3; i++)
+            if (faces[n0].neighbours[i] == faceId)
+                faces[n0].neighbours[i] = PCBindex;
+    }
+    if (n1 != -1) {
+        for (int i = 0; i < 3; i++)
+            if (faces[n1].neighbours[i] == faceId)
+                faces[n1].neighbours[i] = PBAindex;
+    }
+    if (n2 != -1) {
+        for (int i = 0; i < 3; i++)
+            if (faces[n2].neighbours[i] == faceId)
+                faces[n2].neighbours[i] = PACindex;
+    }
+
+    if (vertices[A].faceRef == faceId) vertices[A].SetFaceRef(PBAindex); // A ∈ PBA et PAC
+    if (vertices[B].faceRef == faceId) vertices[B].SetFaceRef(PBAindex); // B ∈ PBA et PCB
+    if (vertices[C].faceRef == faceId) vertices[C].SetFaceRef(PACindex); // C ∈ PAC et PCB
+
+    deleteFace(faceId);
 }
 
-void Mesh::edgeSplit(int face1, int face2) {
+void Mesh::edgeSplit(int face1, int face2, vec3 newSommet) {
     if (face1 < 0 || face2 < 0 ||
         face1 >= static_cast<int>(faces.size()) ||
         face2 >= static_cast<int>(faces.size())) {
@@ -262,27 +273,149 @@ void Mesh::edgeSplit(int face1, int face2) {
     int edge2 = -1;
 
     for (int i = 0; i < 3; ++i) {
-        if (faces[face1].neighbours[i] == face2) {
-            edge1 = i;
-        }
-        if (faces[face2].neighbours[i] == face1) {
-            edge2 = i;
-        }
+        if (faces[face1].neighbours[i] == face2) edge1 = i;
+        if (faces[face2].neighbours[i] == face1) edge2 = i;
     }
+    if (edge1 == -1 || edge2 == -1) return;
 
-    if (edge1 == -1 || edge2 == -1) {
+    const int opp1 = faces[face1].vertices[edge1];
+    const int cv1  = faces[face1].vertices[(edge1 + 1) % 3];
+    const int cv2  = faces[face1].vertices[(edge1 + 2) % 3];
+    const int opp2 = faces[face2].vertices[edge2];
+
+    //index d'un sommet donné dans une face
+    auto localIndexOf = [](const Face& f, int v) {
+        for (int i = 0; i < 3; i++){
+            if (f.vertices[i] == v) 
+                return i;
+        }
+        return -1;
+    };
+
+    // Nouveau sommet M, sur l'arête (cv1, cv2)
+    Vertex newVertex = Vertex(newSommet);
+    vertices.push_back(newVertex);
+    int M = vertices.size() - 1;
+
+    int T1index = faces.size();     // (opp1, cv1, M)
+    int T2index = faces.size() + 1; // (opp1, M, cv2)
+    int T3index = faces.size() + 2; // (opp2, cv2, M)
+    int T4index = faces.size() + 3; // (opp2, M, cv1)
+
+    vertices[M].SetFaceRef(T1index);
+
+
+    int ext_f1_1 = faces[face1].neighbours[(edge1 + 1) % 3]; // opposé cv1, arête (opp1,cv2)
+    int ext_f1_2 = faces[face1].neighbours[(edge1 + 2) % 3]; // opposé cv2, arête (opp1,cv1)
+
+    int idxCv1inFace2 = localIndexOf(faces[face2], cv1);
+    int idxCv2inFace2 = localIndexOf(faces[face2], cv2);
+    int ext_f2_cv1 = faces[face2].neighbours[idxCv2inFace2]; // opposé cv2, arête (opp2,cv1)
+    int ext_f2_cv2 = faces[face2].neighbours[idxCv1inFace2]; // opposé cv1, arête (opp2,cv2)
+
+    Face T1 = Face({opp1, cv1, M});
+    Face T2 = Face({opp1, M, cv2});
+    Face T3 = Face({opp2, cv2, M});
+    Face T4 = Face({opp2, M, cv1});
+
+    T1.SetNeighbours({T4index, T2index, ext_f1_2});
+    T2.SetNeighbours({T3index, ext_f1_1, T1index});
+    T3.SetNeighbours({T2index, T4index, ext_f2_cv2});
+    T4.SetNeighbours({T1index, ext_f2_cv1, T3index});
+
+    faces.push_back(T1);
+    faces.push_back(T2);
+    faces.push_back(T3);
+    faces.push_back(T4);
+
+    // Maj des voisins externes (garde -1 pour les bords)
+    if (ext_f1_2 != -1)
+        for (int i = 0; i < 3; i++)
+            if (faces[ext_f1_2].neighbours[i] == face1) faces[ext_f1_2].neighbours[i] = T1index;
+    if (ext_f1_1 != -1)
+        for (int i = 0; i < 3; i++)
+            if (faces[ext_f1_1].neighbours[i] == face1) faces[ext_f1_1].neighbours[i] = T2index;
+    if (ext_f2_cv2 != -1)
+        for (int i = 0; i < 3; i++)
+            if (faces[ext_f2_cv2].neighbours[i] == face2) faces[ext_f2_cv2].neighbours[i] = T3index;
+    if (ext_f2_cv1 != -1)
+        for (int i = 0; i < 3; i++)
+            if (faces[ext_f2_cv1].neighbours[i] == face2) faces[ext_f2_cv1].neighbours[i] = T4index;
+
+    // Réassignation des faces opposées des sommets,
+    // avant suppression de face1/face2
+    if (vertices[opp1].faceRef == face1) vertices[opp1].SetFaceRef(T1index);
+    if (vertices[opp2].faceRef == face2) vertices[opp2].SetFaceRef(T3index);
+    if (vertices[cv1].faceRef == face1) vertices[cv1].SetFaceRef(T1index);
+    if (vertices[cv1].faceRef == face2) vertices[cv1].SetFaceRef(T4index);
+    if (vertices[cv2].faceRef == face1) vertices[cv2].SetFaceRef(T2index);
+    if (vertices[cv2].faceRef == face2) vertices[cv2].SetFaceRef(T3index);
+
+    // Suppression de l'index le plus grand en premier, pour ne pas décaler l'autre
+    if (face1 > face2) {
+        deleteFace(face1);
+        deleteFace(face2);
+    } else {
+        deleteFace(face2);
+        deleteFace(face1);
+    }
+}
+
+void Mesh::edgeFlip(int face1, int face2) {
+    if (face1 < 0 || face2 < 0 ||
+        face1 >= static_cast<int>(faces.size()) ||
+        face2 >= static_cast<int>(faces.size())) {
         return;
     }
 
-    const int commonVertex1 = faces[face1].vertices[(edge1 + 1) % 3];
-    const int commonVertex2 = faces[face1].vertices[(edge1 + 2) % 3];
-    const int oppositeVertex1 = faces[face1].vertices[edge1];
-    const int oppositeVertex2 = faces[face2].vertices[edge2];
+    int edge1 = -1, edge2 = -1;
+    for (int i = 0; i < 3; ++i) {
+        if (faces[face1].neighbours[i] == face2) edge1 = i;
+        if (faces[face2].neighbours[i] == face1) edge2 = i;
+    }
+    if (edge1 == -1 || edge2 == -1) return;
 
-    (void)commonVertex1;
-    (void)commonVertex2;
-    (void)oppositeVertex1;
-    (void)oppositeVertex2;
+    auto localIndexOf = [](const Face& f, int v) {
+        for (int i = 0; i < 3; i++) if (f.vertices[i] == v) return i;
+        return -1;
+    };
+
+    const int opp1 = faces[face1].vertices[edge1];
+    const int cv1  = faces[face1].vertices[(edge1 + 1) % 3];
+    const int cv2  = faces[face1].vertices[(edge1 + 2) % 3];
+    const int opp2 = faces[face2].vertices[edge2];
+
+    // Les 4 arêtes de bord du rectangle (opp1, cv1, opp2, cv2),
+    int ext_opp1_cv1 = faces[face1].neighbours[localIndexOf(faces[face1], cv2)];
+    int ext_cv2_opp1 = faces[face1].neighbours[localIndexOf(faces[face1], cv1)];
+    int ext_cv1_opp2 = faces[face2].neighbours[localIndexOf(faces[face2], cv2)];
+    int ext_opp2_cv2 = faces[face2].neighbours[localIndexOf(faces[face2], cv1)];
+
+    // Nouvelle diagonale : opp1-opp2 (remplace cv1-cv2)
+    Face newT1 = Face({opp1, cv1, opp2});   
+    Face newT2 = Face({opp1, opp2, cv2}); 
+
+    newT1.SetNeighbours({ext_cv1_opp2, face2, ext_opp1_cv1});
+    newT2.SetNeighbours({ext_opp2_cv2, ext_cv2_opp1, face1});
+
+    // Mise à jour des 2 voisins externes qui "changent de côté".
+    // Les 2 autres (ext_opp1_cv1, ext_opp2_cv2) restent sur le même index, rien à faire.
+    if (ext_cv2_opp1 != -1)
+        for (int i = 0; i < 3; i++)
+            if (faces[ext_cv2_opp1].neighbours[i] == face1) faces[ext_cv2_opp1].neighbours[i] = face2;
+    if (ext_cv1_opp2 != -1)
+        for (int i = 0; i < 3; i++)
+            if (faces[ext_cv1_opp2].neighbours[i] == face2) faces[ext_cv1_opp2].neighbours[i] = face1;
+
+    // cv1 n'existe plus que dans newT1 (face1), cv2 que dans newT2 (face2)
+    if (vertices[cv1].faceRef == face1 || vertices[cv1].faceRef == face2)
+        vertices[cv1].SetFaceRef(face1);
+    if (vertices[cv2].faceRef == face1 || vertices[cv2].faceRef == face2)
+        vertices[cv2].SetFaceRef(face2);
+    // opp1 et opp2 apparaissent dans les deux nouveaux triangles : rien à changer
+
+    faces[face1] = newT1;
+    faces[face2] = newT2;
 }
 
 

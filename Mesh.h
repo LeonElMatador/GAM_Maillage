@@ -31,7 +31,9 @@ class Mesh{
         std::vector<int> neighbours(const int& vertex) const;
 
         void faceSplit(int faceId, vec3 newSommet);
-        void edgeSplit(int face1, int face2);
+        void edgeSplit(int face1, int face2, vec3 newSommet);
+        void edgeFlip(int face1, int face2);
+
         void deleteFace(int id);
 };
 
