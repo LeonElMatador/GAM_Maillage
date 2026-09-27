@@ -1,6 +1,6 @@
 #include "Mesh.h"
 
-Mesh::Mesh(std::vector<Vertex>& vertices, std::vector<Face>& faces) : vertices(vertices), faces(faces) {}
+Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<Face>& faces, int borderLink) : vertices(vertices), faces(faces) , borderLink(borderLink){}
 
 //TODO default constructor
 //TODO copy constructor
@@ -34,7 +34,7 @@ Mesh Mesh::LoadTetrahedron(){
     f3.SetNeighbours(std::vector<int>{3,0,1});
     f4.SetNeighbours(std::vector<int>{1,0,2});
 
-    return Mesh(vertices, faces);
+    return Mesh(vertices, faces, -1);
 };
 
 
@@ -146,8 +146,38 @@ Mesh Mesh::ReadOFF(const std::string& filePath){
     }
 
 
-    return Mesh(vertices, faces);
+    //Building border
+    float inf =  std::numeric_limits<float>::infinity();
+    Vertex borderLink = Vertex(vec3(inf,inf,inf));
+    int borderLinkIndex = vertices.size();
+    vertices.push_back(borderLink);
+
+    int i = 0;
+    for (const auto& edge : map) {
+        Face f({borderLinkIndex, edge.first[1], edge.first[0]});
+        f.neighbours[0] = edge.second[0];
+        faces[edge.second[0]].neighbours[edge.second[1]] = faces.size();
+
+        if(i > 0){
+            f.neighbours[2] = faces.size()-1;
+            faces[faces.size()-1].neighbours[1] = faces.size();
+        }
+        else{
+            borderLink.SetFaceRef(faces.size());
+        }
+
+        faces.push_back(f);
+        i++;
+    }
+
+    //on raccroche le premier et le dernier de la bordure 
+    faces[faces.size()-i].neighbours[2] = faces.size()-1;
+    faces[faces.size()-1].neighbours[1] = faces.size()-i;
+    
+    return Mesh(vertices, faces, borderLinkIndex);
 }
+
+
 
 
 std::vector<int> Mesh::neighbours(const int& vertex) const{ 
@@ -176,7 +206,6 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
     int B = faces[faceId].vertices[2]; 
 
     Vertex newVertex = Vertex(newSommet);
-    newVertex.SetFaceRef(faceId);
     vertices.push_back(newVertex);
     int P = vertices.size()-1;
 
@@ -187,6 +216,11 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
     int PBAindex = faces.size();
     int PACindex = faces.size()+1;
     int PCBindex = faces.size()+2;
+
+    newVertex.SetFaceRef(faceId);
+    vertices[A].SetFaceRef(PBAindex);
+    vertices[B].SetFaceRef(PBAindex);
+    vertices[C].SetFaceRef(PACindex);
 
 
     std::vector<int> voisinsPBA = {faces[faceId].neighbours[1], PACindex, PCBindex};
@@ -252,7 +286,7 @@ void Mesh::edgeSplit(int face1, int face2) {
 }
 
 
-void Mesh::deleteFace(int id){
+void Mesh::deleteFace(int id){//TODO should be called before adding triangle or should add triangle without taking into account the deletion
     for(int i = 0; i<faces.size(); i++){
         for(int j = 0; j<3; j++){
             if(faces[i].neighbours[j]>id){
@@ -260,7 +294,9 @@ void Mesh::deleteFace(int id){
             } 
         }
     }
-    //TODO reduire les ref de faces des sommets 
+    for(int i = 0; i<vertices.size(); i++){
+        if(vertices[i].faceRef>id) vertices[i].faceRef--;
+    }
     faces.erase(faces.begin() + id);
 }
 

@@ -13,8 +13,9 @@ class Mesh{
     public : 
         std::vector<Vertex> vertices;
         std::vector<Face> faces; 
+        int borderLink;
 
-        Mesh(std::vector<Vertex>& vertices, std::vector<Face>& faces);
+        Mesh(const std::vector<Vertex>& vertices,const std::vector<Face>& faces, int borderLink);
 
         //TODO default constructor
         //TODO copy constructor

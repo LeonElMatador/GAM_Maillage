@@ -1,6 +1,6 @@
 #include "Face.h"
 
-Face::Face(const std::vector<int>& vertices) : vertices(std::move(vertices)){}
+Face::Face(const std::vector<int>& vertices) : vertices(std::move(vertices)), neighbours(std::vector<int>(3)){}
 
 Face::Face(const std::vector<int>& vertices, const std::vector<int>& neighbours) : vertices(std::move(vertices)), neighbours(std::move(neighbours)){}
 
