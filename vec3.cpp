@@ -37,3 +37,21 @@ float vec3::norm()const{
 vec3 vec3::Lerp(const vec3& v1, const vec3& v2, float t){
     return v1*(1-t) + v2*t;
 }
+
+bool vec3::IsTrigoOriented(const vec3& v1, const vec3& v2, const vec3& v3){
+    return Cross(v2-v1, v3-v1).z > 0;
+}
+
+int vec3::IsInside(const vec3& p, const vec3& a, const vec3& b, const vec3& c){
+    float airPAB = Cross(a-p, b-p).z;
+    float airPBC = Cross(b-p, c-p).z;
+    float airPCA = Cross(c-p, a-p).z;
+
+    if(airPAB<0||airPBC<0||airPCA<0){
+        return -1;
+    }
+    else if(airPAB==0||airPBC==0||airPCA==0){
+        return 0;
+    }
+    else return 1;
+}

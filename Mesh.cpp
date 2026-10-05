@@ -148,7 +148,7 @@ Mesh Mesh::ReadOFF(const std::string& filePath){
 
     //Building border
     float inf =  std::numeric_limits<float>::infinity();
-    Vertex borderLink = Vertex(vec3(inf,inf,inf));
+    Vertex borderLink = Vertex(vec3(0,0,inf));
     int borderLinkIndex = vertices.size();
     vertices.push_back(borderLink);
 
