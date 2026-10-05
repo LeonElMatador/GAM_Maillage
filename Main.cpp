@@ -96,6 +96,48 @@ bool runMeshTests() {
     int failures = 0;
 
     {
+        const std::string name = "IsTrigoOriented";
+        const vec3 a(0.0f, 0.0f, 0.0f);
+        const vec3 b(4.0f, 0.0f, 0.0f);
+        const vec3 c(0.0f, 4.0f, 0.0f);
+        bool passed = true;
+        if (!vec3::IsTrigoOriented(a, b, c)) {
+            std::cerr << "[ERREUR] " << name << ": un triangle antihoraire doit être orienté trigo\n";
+            passed = false;
+        }
+        if (vec3::IsTrigoOriented(a, c, b) ||
+            vec3::IsTrigoOriented(a, b, vec3(8.0f, 0.0f, 0.0f))) {
+            std::cerr << "[ERREUR] " << name << ": un triangle horaire ou colinéaire ne doit pas être orienté trigo\n";
+            passed = false;
+        }
+        if (passed) std::cout << "[OK] " << name << '\n';
+        else ++failures;
+    }
+
+    {
+        const std::string name = "IsInside";
+        const vec3 a(0.0f, 0.0f, 0.0f);
+        const vec3 b(4.0f, 0.0f, 0.0f);
+        const vec3 c(0.0f, 4.0f, 0.0f);
+        bool passed = true;
+        if (vec3::IsInside(vec3(1.0f, 1.0f, 0.0f), a, b, c) != 1) {
+            std::cerr << "[ERREUR] " << name << ": le point intérieur doit renvoyer 1\n";
+            passed = false;
+        }
+        if (vec3::IsInside(vec3(3.0f, 3.0f, 0.0f), a, b, c) != -1) {
+            std::cerr << "[ERREUR] " << name << ": le point extérieur doit renvoyer -1\n";
+            passed = false;
+        }
+        if (vec3::IsInside(vec3(2.0f, 0.0f, 0.0f), a, b, c) != 0 ||
+            vec3::IsInside(a, a, b, c) != 0) {
+            std::cerr << "[ERREUR] " << name << ": un point sur une arête ou un sommet doit renvoyer 0\n";
+            passed = false;
+        }
+        if (passed) std::cout << "[OK] " << name << '\n';
+        else ++failures;
+    }
+
+    {
         const std::string name = "faceSplit";
         Mesh mesh = makeTestTetrahedron();
         const int oldVertexCount = static_cast<int>(mesh.vertices.size());
