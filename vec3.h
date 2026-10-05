@@ -46,7 +46,7 @@ class vec3{
 
         static vec3 Lerp(const vec3& v1, const vec3& v2, float t);
 
-        static bool IsTrigoOriented(const vec3& v1, const vec3& v2, const vec3& v3);
+        static int IsTrigoOriented(const vec3& v1, const vec3& v2, const vec3& v3);
         static int IsInside(const vec3& p, const vec3& v1, const vec3& v2, const vec3& v3);
 
 };

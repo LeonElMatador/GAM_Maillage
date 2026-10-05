@@ -1,5 +1,7 @@
 #include "vec3.h"
 
+const float EPSILON = 0.0000001f;
+
 vec3::vec3(const float& x, const float& y, const float& z) : x(x), y(y), z(z) {}
 
 vec3::vec3() :  x(0), y(0), z(0) {} 
@@ -38,8 +40,11 @@ vec3 vec3::Lerp(const vec3& v1, const vec3& v2, float t){
     return v1*(1-t) + v2*t;
 }
 
-bool vec3::IsTrigoOriented(const vec3& v1, const vec3& v2, const vec3& v3){
-    return Cross(v2-v1, v3-v1).z > 0;
+int vec3::IsTrigoOriented(const vec3& v1, const vec3& v2, const vec3& v3){
+    float c = Cross(v2-v1, v3-v1).z;
+    if(c > EPSILON)return 1;
+    if(c < -EPSILON)return -1;
+    return 0;
 }
 
 int vec3::IsInside(const vec3& p, const vec3& a, const vec3& b, const vec3& c){
@@ -47,11 +52,11 @@ int vec3::IsInside(const vec3& p, const vec3& a, const vec3& b, const vec3& c){
     float airPBC = Cross(b-p, c-p).z;
     float airPCA = Cross(c-p, a-p).z;
 
-    if(airPAB<0||airPBC<0||airPCA<0){
+    if(airPAB<-EPSILON||airPBC<-EPSILON||airPCA<-EPSILON){
         return -1;
     }
-    else if(airPAB==0||airPBC==0||airPCA==0){
-        return 0;
+    if(airPAB > EPSILON && airPBC > EPSILON && airPCA > EPSILON){
+        return 1;
     }
-    else return 1;
+    return 0;
 }
