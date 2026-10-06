@@ -47,16 +47,3 @@ int vec3::IsTrigoOriented(const vec3& v1, const vec3& v2, const vec3& v3){
     return 0;
 }
 
-int vec3::IsInside(const vec3& p, const vec3& a, const vec3& b, const vec3& c){
-    float airPAB = Cross(a-p, b-p).z;
-    float airPBC = Cross(b-p, c-p).z;
-    float airPCA = Cross(c-p, a-p).z;
-
-    if(airPAB<-EPSILON||airPBC<-EPSILON||airPCA<-EPSILON){
-        return -1;
-    }
-    if(airPAB > EPSILON && airPBC > EPSILON && airPCA > EPSILON){
-        return 1;
-    }
-    return 0;
-}

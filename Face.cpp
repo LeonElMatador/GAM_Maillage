@@ -17,3 +17,6 @@ std::string Face::str() const {
     return s;
 }
 
+int Face::operator [](int i)const {
+    return vertices[i];
+}

@@ -16,4 +16,6 @@ class Face{
         void SetNeighbours(const std::vector<int>& neighbours);
 
         std::string str() const;
+
+        int operator[](int i)const;
 };

@@ -8,6 +8,7 @@
 #include <map>
 #include <array>
 #include <cassert>
+#include "vec3.h"
 
 class Mesh{
     public : 
@@ -35,5 +36,11 @@ class Mesh{
         void edgeFlip(int face1, int face2);
 
         void deleteFace(int id);
+
+        void addVerticesToTriangulation(const vec3& p);
+
+        int isInside(const vec3& p, int f, int& edgeFace)const;
+
+        std::vector<int> getBorder()const;
 };
 

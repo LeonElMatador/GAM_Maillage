@@ -5,7 +5,7 @@
 
 class Vertex{
     public : 
-        vec3 coordinates;
+        vec3 coord;
         int faceRef;
         
         Vertex(const vec3& p);

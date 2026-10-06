@@ -11,13 +11,13 @@ void ThermalState::computeLaplacian(const Mesh& m){
         assert(!neighbours.empty());
 
         for(int j = 0; j< neighbours.size(); j++){
-            vec3 A = m.vertices[i].coordinates;
-            vec3 B = m.vertices[neighbours[j]].coordinates;
+            vec3 A = m.vertices[i].coord;
+            vec3 B = m.vertices[neighbours[j]].coord;
 
             //calcule cotangeante de voisin -1 
             //BUG probleme de type entre size et le modulo + modulo d'unn bail negatif
             int size = static_cast<int>(neighbours.size());
-            vec3 C = m.vertices[neighbours[(j-1+size)%size]].coordinates;
+            vec3 C = m.vertices[neighbours[(j-1+size)%size]].coord;
             vec3 CA = A - C;
             vec3 CB = B - C;
 
@@ -32,7 +32,7 @@ void ThermalState::computeLaplacian(const Mesh& m){
             float cotanC = dotCAB/crossCABnorm;
 
             //calcule cotangeante de voisin +1 
-            vec3 D = m.vertices[neighbours[(j+1)%size]].coordinates;
+            vec3 D = m.vertices[neighbours[(j+1)%size]].coord;
             vec3 DA = A - D;
             vec3 DB = B - D;
 
@@ -69,7 +69,7 @@ void ThermalState::WriteCOFF(const Mesh& mesh, const std::string& filePath){
     fileContent += std::to_string(mesh.faces.size()) + " 0\n";
 
     for(size_t i = 0; i < mesh.vertices.size(); i++){
-        fileContent += mesh.vertices[i].coordinates.str() + " " + getColor(i).str() + "\n";
+        fileContent += mesh.vertices[i].coord.str() + " " + getColor(i).str() + "\n";
     }
 
     for(size_t i = 0; i < mesh.faces.size(); i++){

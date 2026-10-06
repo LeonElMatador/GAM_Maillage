@@ -9,3 +9,12 @@
         - ensuite pour chaque edge restante
             - edgeflip de l'edge entre infini et le sommet dans l'arrete et déja relié à p 
             - (si dans l'ordre on retiens juste le premier sommet de l'edge : AB, BC, CD on fait faceplit de ABinf et ensuit epremier flip -> flip(Binf), deuxieme flip -> Cinf)
+
+
+# TODO
+- finir triangulation
+- réparer laplacien
+- modifier face split pour ne pas delete de face
+- clean le code 
+- commenter
+- rapport

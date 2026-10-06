@@ -44,7 +44,7 @@ void Mesh::WriteOFF(const Mesh& mesh, const std::string& filePath){
     fileContent += std::to_string(mesh.faces.size()) + " 0\n";
 
     for(size_t i = 0; i < mesh.vertices.size(); i++){
-        fileContent += mesh.vertices[i].coordinates.str() + "\n";
+        fileContent += mesh.vertices[i].coord.str() + "\n";
     }
 
     for(size_t i = 0; i < mesh.faces.size(); i++){
@@ -102,7 +102,7 @@ Mesh Mesh::ReadOFF(const std::string& filePath){
         faceVertices.push_back(v2);
         faceVertices.push_back(v3);
         
-        assert(vec3::Cross(vertices[v2].coordinates - vertices[v1].coordinates,  vertices[v3].coordinates - vertices[v1].coordinates).norm()!=0);
+        assert(vec3::Cross(vertices[v2].coord - vertices[v1].coord,  vertices[v3].coord - vertices[v1].coord).norm()!=0);
 
         std::vector<int> faceNeighbours;
         faceNeighbours.resize(3);
@@ -201,9 +201,9 @@ std::vector<int> Mesh::neighbours(const int& vertex) const{
 }
 
 void Mesh::faceSplit(int faceId, vec3 newSommet) {
-    int A = faces[faceId].vertices[0];
-    int C = faces[faceId].vertices[1];
-    int B = faces[faceId].vertices[2];
+    int A = faces[faceId][0];
+    int C = faces[faceId][1];
+    int B = faces[faceId][2];
 
     Vertex newVertex = Vertex(newSommet);
     vertices.push_back(newVertex);
@@ -433,5 +433,44 @@ void Mesh::deleteFace(int id){//TODO should be called before adding triangle or 
     faces.erase(faces.begin() + id);
 }
 
+void Mesh::addVerticesToTriangulation(const vec3& p){
+    for(int i = 0; i < faces.size(); i++){
+        int edgeRelatedFace = 0;
+        int relativePos = isInside(p, i, edgeRelatedFace);
+        if(relativePos==1){
+            faceSplit(i, p);
+            return;
+        }
+        if(relativePos==0){
+            edgeSplit(i, edgeRelatedFace, p);
+            return;
+        }
 
+    }
+    //en dehors
+}
+
+const float EPSILON = 0.000001f;
+int Mesh::isInside(const vec3& p, int faceIndex, int& edgeFace)const {
+    Face f = faces[faceIndex];
+    float airPAB = vec3::Cross(vertices[f[0]].coord - p, vertices[f[1]].coord - p).z;
+    float airPBC = vec3::Cross(vertices[f[1]].coord - p, vertices[f[2]].coord - p).z;
+    float airPCA = vec3::Cross(vertices[f[2]].coord - p, vertices[f[0]].coord - p).z;
+
+    if(airPAB<-EPSILON||airPBC<-EPSILON||airPCA<-EPSILON){
+        return -1;
+    }
+    if(airPAB > EPSILON && airPBC > EPSILON && airPCA > EPSILON){
+        return 1;
+    }
+    if(airPAB < EPSILON && airPAB >= -EPSILON) edgeFace = f.neighbours[2];
+    if(airPBC < EPSILON && airPBC >= -EPSILON) edgeFace = f.neighbours[0];
+    if(airPCA < EPSILON && airPCA >= -EPSILON) edgeFace = f.neighbours[1];
+    return 0;
+}
+
+
+std::vector<int> Mesh::getBorder() const{
+    
+}
 
