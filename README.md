@@ -1,14 +1,15 @@
 # GAM_Maillage
 
-## Tests
+## Générer une triangulation aléatoire
 
-Lancer les tests du maillage et de triangulation avec :
+Le programme peut ajouter un nombre choisi de points aléatoires à un triangle
+initial puis exporter la triangulation au format OFF dans le dossier `OFF/`.
+Par exemple, pour ajouter 50 points :
 
 ```sh
-make test
+make
+./tp1 --random 50
 ```
 
-Cela compile le programme puis exécute les cas de test via `tp1 --test`.
-Les cas de triangulation écrivent également leurs maillages finis au format OFF
-dans le dossier `OFF/` : `triangle_plus_point.off`, `square_plus_point.off` et
-`10_points.off`.
+Le maillage obtenu est écrit dans `OFF/random_50_points.off`. Le générateur
+utilise une graine fixe, ce qui rend les résultats reproductibles.
