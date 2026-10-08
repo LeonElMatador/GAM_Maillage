@@ -445,7 +445,6 @@ void Mesh::addVerticesToTriangulation(const vec3& p){
             edgeSplit(i, edgeRelatedFace, p);
             return;
         }
-
     }
     //en dehors
     int firstFace = this->vertices[borderLink].faceRef;
