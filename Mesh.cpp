@@ -57,6 +57,12 @@ void Mesh::WriteOFF(const Mesh& mesh, const std::string& filePath){
         }
     }
 
+    float maxCurvature = 0.0f;
+    for(int i = 0; i < mesh.vertices.size(); ++i){
+        if(i == mesh.borderLink) continue;
+        maxCurvature = std::max(maxCurvature, mesh.curvature[i]);
+    }
+
     //on compte uniquement les faces qui ne contiennent pas le sommet à l'infini
     int finiteFaceCount = 0;
     for(const Face& face : mesh.faces){
@@ -65,19 +71,17 @@ void Mesh::WriteOFF(const Mesh& mesh, const std::string& filePath){
         }
     }
 
-    //on crée l'en-tête du fichier OFF avec le nombre de sommets et de faces finis
-    std::string fileContent = "OFF\n";
+    std::string fileContent = "COFF\n";
     fileContent += std::to_string(finiteVertexCount) + " ";
     fileContent += std::to_string(finiteFaceCount) + " 0\n";
 
-    //on ajoute les coordonnées de tous les sommets finis dans l'ordre des nouveaux index
     for(size_t i = 0; i < mesh.vertices.size(); i++){
         if((int)(i) != mesh.borderLink){
-            fileContent += mesh.vertices[i].coord.str() + "\n";
+            float normalizedCurvature = mesh.curvature[i] / maxCurvature;
+            fileContent += mesh.vertices[i].coord.str() + " " + (mesh.curvatureToColor(normalizedCurvature)).str() +"\n";
         }
     }
 
-    //on ajoute les faces finies en remplaçant les index par ceux du fichier OFF
     for(const Face& face : mesh.faces){
         if(std::find(face.vertices.begin(), face.vertices.end(), mesh.borderLink) != face.vertices.end()){
             continue;
@@ -106,6 +110,10 @@ void Mesh::WriteOFF(const Mesh& mesh, const std::string& filePath){
 Mesh Mesh::ReadOFF(const std::string& filePath){
     //on ouvre le fichier OFF et on passe son en-tête
     std::ifstream file(filePath);
+
+    if(!file.is_open()){
+        std::cerr << "Error while opening file : " << filePath << std::endl;
+    }
 
     file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
@@ -190,34 +198,42 @@ Mesh Mesh::ReadOFF(const std::string& filePath){
     }
 
 
-    //on crée le sommet à l'infini et les faces correspondant aux arêtes de bord
-    float inf =  std::numeric_limits<float>::infinity();
-    Vertex borderLink = Vertex(vec3(0,0,inf));
+
     int borderLinkIndex = vertices.size();
-    vertices.push_back(borderLink);
+    if(!map.empty()){
+        //on crée le sommet à l'infini et les faces correspondant aux arêtes de bord
+        float inf =  std::numeric_limits<float>::infinity();
+        Vertex borderLink = Vertex(vec3(0,0,inf));
+        vertices.push_back(borderLink);
 
-    int i = 0;
-    for (const auto& edge : map) {
-        //on relie chaque nouvelle face de bord à sa face intérieure
-        Face f({borderLinkIndex, edge.first[1], edge.first[0]});
-        f.neighbours[0] = edge.second[0];
-        faces[edge.second[0]].neighbours[edge.second[1]] = faces.size();
+        int i = 0;
+        for (const auto& edge : map) {
+            //on relie chaque nouvelle face de bord à sa face intérieure
+            Face f({borderLinkIndex, edge.first[1], edge.first[0]});
+            f.neighbours[0] = edge.second[0];
+            faces[edge.second[0]].neighbours[edge.second[1]] = faces.size();
 
-        if(i > 0){
-            f.neighbours[2] = faces.size()-1;
-            faces[faces.size()-1].neighbours[1] = faces.size();
+            if(i > 0){
+                f.neighbours[2] = faces.size()-1;
+                faces[faces.size()-1].neighbours[1] = faces.size();
+            }
+            else{
+                borderLink.SetFaceRef(faces.size());
+            }
+
+            faces.push_back(f);
+            i++;
         }
-        else{
-            borderLink.SetFaceRef(faces.size());
+        if(i>0){
+            //on relie les deux extrémités de la bordure pour fermer le parcours
+            faces[faces.size()-i].neighbours[2] = faces.size()-1;
+            faces[faces.size()-1].neighbours[1] = faces.size()-i;
         }
-
-        faces.push_back(f);
-        i++;
     }
-
-    //on relie les deux extrémités de la bordure pour fermer le parcours
-    faces[faces.size()-i].neighbours[2] = faces.size()-1;
-    faces[faces.size()-1].neighbours[1] = faces.size()-i;
+    else{
+        borderLinkIndex=-1;
+    }
+    
     
     return Mesh(vertices, faces, borderLinkIndex);
 }
@@ -226,26 +242,45 @@ Mesh Mesh::ReadOFF(const std::string& filePath){
 
 
 std::vector<int> Mesh::neighbours(const int& vertex) const{ 
-    //on récupère une face incidente au sommet pour commencer le parcours
-    std::vector<int> neighbours; 
+    std::vector<int> neighbours;
+    if (vertex < 0 || vertex >= static_cast<int>(this->vertices.size())) return neighbours;
+    if (this->borderLink >= 0 && vertex == this->borderLink) return neighbours;
+
     int firstFace = this->vertices[vertex].faceRef;
+    if (firstFace < 0 || firstFace >= static_cast<int>(this->faces.size())) return neighbours;
+
     int currentFace = firstFace;
-    //on parcours les faces autour du sommet jusqu'à revenir à la première
-    while(neighbours.size()==0 || currentFace!=firstFace){
-        int neigh = -1; 
-        for(size_t i = 0; i < 3; i++){
-            if(this->faces[currentFace].vertices[i] == vertex){
-                neigh = (i+1)%3;
+    std::vector<int> visitedFaces;
+    visitedFaces.push_back(currentFace);
+
+    for (int iter = 0; iter < static_cast<int>(this->faces.size()) * 3; ++iter) {
+        int localIndex = -1;
+        for (int i = 0; i < 3; ++i) {
+            if (this->faces[currentFace].vertices[i] == vertex) {
+                localIndex = i;
+                break;
             }
         }
-        assert(neigh!=-1);
-        //on ajoute le sommet voisin puis on passe à la face suivante autour du sommet
-        neighbours.push_back(this->faces[currentFace].vertices[neigh]);
+        if (localIndex == -1 || currentFace < 0 || currentFace >= static_cast<int>(this->faces.size())) {
+            break;
+        }
 
-        currentFace = this->faces[currentFace].neighbours[neigh];
+        const int nextLocalIndex = (localIndex + 1) % 3;
+        const int nextFace = this->faces[currentFace].neighbours[nextLocalIndex];
+        const int nextVertex = this->faces[currentFace].vertices[nextLocalIndex];
+
+        if (nextFace == -1) break;
+        neighbours.push_back(nextVertex);
+
+        if (nextFace == firstFace) break;
+
+        currentFace = nextFace;
+        if (std::find(visitedFaces.begin(), visitedFaces.end(), currentFace) != visitedFaces.end()) {
+            break;
+        }
+        visitedFaces.push_back(currentFace);
     }
 
-    //on retourne les sommets voisins dans l'ordre du parcours
     return neighbours;
 }
 
@@ -536,7 +571,8 @@ void Mesh::addVerticesToTriangulation(const vec3& p){
         if(vec3::IsTrigoOriented(p,vertices[endpoint1].coord, vertices[endpoint2].coord) == 1){//Visible
             if(firstFace == currentFace) isFirstFaceVisible = this->faces[currentFace].neighbours[v2];//on enregistre le voisin gauche pour pouvoir repartir a gauche
             if(!hasSplit){
-                faceSplit(currentFace, p);//! BUG
+                faceSplit(currentFace, p);
+                //une face vient d'etre supprimée
                 if(nextFace>currentFace)nextFace--;
                 if(isFirstFaceVisible>currentFace)isFirstFaceVisible--;
                 hasSplit=true;
@@ -662,4 +698,87 @@ std::vector<int> Mesh::getBorder() const{
 
     //on retourne la liste des faces de bord
     return borderFaces;
+}
+
+
+void Mesh::computeCurvature(){
+    curvature.resize(vertices.size());
+    laplacien.resize(vertices.size());
+
+    for(int i = 0; i < static_cast<int>(vertices.size()); ++i){
+        if (i == borderLink) {
+            laplacien[i] = vec3(0.0f, 0.0f, 0.0f);
+            curvature[i] = 0.0f;
+            continue;
+        }
+
+        vec3 sum(0.0f, 0.0f, 0.0f);
+        float surfaceSum = 0.0f;
+        std::vector<int> neighbours = this->neighbours(i);
+        if (neighbours.size() < 2) {
+            laplacien[i] = vec3(0.0f, 0.0f, 0.0f);
+            curvature[i] = 0.0f;
+            continue;
+        }
+
+        const int size = static_cast<int>(neighbours.size());
+        for(int j = 0; j < size; ++j){
+            const vec3 A = vertices[i].coord;
+            const vec3 B = vertices[neighbours[j]].coord;
+            const vec3 C = vertices[neighbours[(j - 1 + size) % size]].coord;
+            const vec3 D = vertices[neighbours[(j + 1) % size]].coord;
+
+            const vec3 CA = A - C;
+            const vec3 CB = B - C;
+            const vec3 DA = A - D;
+            const vec3 DB = B - D;
+
+            const float crossCABnorm = vec3::Cross(CA, CB).norm();
+            const float crossDABnorm = vec3::Cross(DA, DB).norm();
+
+            if (crossCABnorm <= 1e-8f || crossDABnorm <= 1e-8f) {
+                continue;
+            }
+
+            const float dotCAB = vec3::Dot(CA, CB);
+            const float dotDAB = vec3::Dot(DA, DB);
+            const float leftSurface = crossCABnorm / 2.0f;
+            surfaceSum += leftSurface;
+
+            const float cotanC = dotCAB / crossCABnorm;
+            const float cotanD = dotDAB / crossDABnorm;
+
+            sum = sum + (B - A) * (cotanC + cotanD);
+        }
+
+        if (surfaceSum <= 1e-8f) {
+            laplacien[i] = vec3(0.0f, 0.0f, 0.0f);
+            curvature[i] = 0.0f;
+            continue;
+        }
+
+        laplacien[i] = sum / (2.0f * surfaceSum);
+        curvature[i] = laplacien[i].norm() / 2.0f;
+        if (!std::isfinite(curvature[i]) || !std::isfinite(laplacien[i].x) ||
+            !std::isfinite(laplacien[i].y) || !std::isfinite(laplacien[i].z)) {
+            laplacien[i] = vec3(0.0f, 0.0f, 0.0f);
+            curvature[i] = 0.0f;
+        }
+    }
+}
+
+
+vec3 Mesh::curvatureToColor(float c)const{
+    const double value = c;
+    const vec3 blue(0.0f, 0.0f, 1.0f);
+    const vec3 cyan(0.0f, 1.0f, 1.0f);
+    const vec3 green(0.0f, 1.0f, 0.0f);
+    const vec3 yellow(1.0f, 1.0f, 0.0f);
+    const vec3 red(1.0f, 0.0f, 0.0f);
+
+    if (value < 0.08f) return vec3::Lerp(blue, cyan, value / 0.08f);
+    if (value < 0.25f) return vec3::Lerp(cyan, green, (value - 0.08f) / 0.17f);
+    if (value < 0.55f) return vec3::Lerp(green, yellow, (value - 0.25f) / 0.30f);
+    if (value < 0.90f) return vec3::Lerp(yellow, red, (value - 0.55f) / 0.35f);
+    return red;
 }

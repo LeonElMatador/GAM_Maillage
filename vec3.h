@@ -32,6 +32,10 @@ class vec3{
         vec3  operator *(float a)const{
             return vec3(a*x, a*y, a*z);
         };
+
+        vec3  operator /(float a)const{
+            return vec3(x / a, y / a, z / a);
+        };
         
         vec3  operator -(const vec3& v)const{
             return vec3(x-v.x, y-v.y, z-v.z);

@@ -14,6 +14,8 @@ class Mesh{
     public : 
         std::vector<Vertex> vertices;
         std::vector<Face> faces; 
+        std::vector<vec3> laplacien;
+        std::vector<float> curvature;
         int borderLink;//point à l'infini
 
         Mesh(const std::vector<Vertex>& vertices,const std::vector<Face>& faces, int borderLink);
@@ -43,5 +45,8 @@ class Mesh{
         int isInside(const vec3& p, int f, int& edgeFace)const;
 
         std::vector<int> getBorder()const;
+
+        void computeCurvature();
+        vec3 curvatureToColor(float c)const;
 };
 

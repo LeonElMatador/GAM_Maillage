@@ -59,15 +59,18 @@ int main(int argc, char const *argv[])
     }
 
 
-    // tes trucs de con pour la chaleur là
     Mesh mesh = Mesh::ReadOFF(std::string(argv[1]));
-    ThermalState thermalState(std::vector<float>(mesh.vertices.size(), 0));
-    thermalState.heatValues[0] = 100;
+    mesh.computeCurvature();
+    Mesh::WriteOFF(mesh, "curvature.off");
+
+    ThermalState thermalState(std::vector<double>(mesh.vertices.size(), 0));
+    thermalState.heatValues[0] = 1000;
 
     const int totalSteps = 10000;
     std::cout << "Progression : 0%" << std::flush;
     for (int i = 1; i <= totalSteps; ++i) {
-        thermalState.step(mesh, 0.00000010f);
+        thermalState.step(mesh, 0.0000005f);
+        thermalState.heatValues[0] = 1000;
 
         if (i % 100 == 0) {
             const int percent = (i * 100) / totalSteps;
