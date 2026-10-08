@@ -8,6 +8,21 @@
 #include <vector>
 
 namespace {
+    
+void addOnePointOutsideTriangle() {
+    const std::vector<vec3> trianglePoints{
+        vec3(-1.0f, -1.0f, 0.0f),
+        vec3(1.0f, -1.0f, 0.0f),
+        vec3(0.0f, 1.0f, 0.0f)
+    };
+
+    Mesh mesh = Mesh::Triangulize(trianglePoints);
+    mesh.addVerticesToTriangulation(vec3(0.0f, -2.0f, 0.0f));
+
+    std::filesystem::create_directories("OFF");
+    Mesh::WriteOFF(mesh, "OFF/triangle_plus_outside_point.off");
+}
+
 void randomizeTriangulation(int pointCount) {
     std::vector<vec3> points{
         vec3(-1.0f, -1.0f, 0.0f),
@@ -30,6 +45,11 @@ void randomizeTriangulation(int pointCount) {
 
 int main(int argc, char const *argv[])
 {
+    if (argc == 2 && std::string(argv[1]) == "--test-add-outside") {
+        addOnePointOutsideTriangle();
+        return 0;
+    }
+
     if (argc == 3 && std::string(argv[1]) == "--random") {
         size_t parsedCharacters = 0;
         const int pointCount = std::stoi(argv[2], &parsedCharacters);
