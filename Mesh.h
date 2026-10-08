@@ -14,7 +14,7 @@ class Mesh{
     public : 
         std::vector<Vertex> vertices;
         std::vector<Face> faces; 
-        int borderLink;
+        int borderLink;//point à l'infini
 
         Mesh(const std::vector<Vertex>& vertices,const std::vector<Face>& faces, int borderLink);
 

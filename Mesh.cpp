@@ -448,6 +448,64 @@ void Mesh::addVerticesToTriangulation(const vec3& p){
 
     }
     //en dehors
+    int firstFace = this->vertices[borderLink].faceRef;
+    int isFirstFaceVisible = -1;
+    int currentFace = firstFace;
+    bool hasSplit = false;
+    do{
+        int v1 = -1; 
+        int v2 = -1; 
+        for(size_t i = 0; i < 3; i++){
+            if(this->faces[currentFace].vertices[i] == borderLink){
+                v1 = (i+1)%3;
+                v2 = (i+2)%3;
+            }
+        }
+        assert(v1!=-1);
+        assert(v2!=-1);
+        int nextFace = this->faces[currentFace].neighbours[v1];
+        if(vec3::IsTrigoOriented(p,vertices[v1].coord, vertices[v2].coord)){//Visible
+            if(firstFace == currentFace) isFirstFaceVisible = this->faces[currentFace].neighbours[v2];;//on enregistre le voisin gauche pour pouvoir repartir a gauche 
+            if(!hasSplit){
+                faceSplit(currentFace, p);//! BUG ca devrait nous renvoyer les faces crées 
+                hasSplit=true;
+            }
+            else{
+                //edge flip
+                edgeFlip(currentFace, this->faces[currentFace].neighbours[v2]);//on flip avec la face a gauche
+            }
+        }
+        else if(hasSplit){//si pas visible
+            break;
+        }
+        currentFace = nextFace;
+    }while(currentFace!=firstFace);
+
+
+    if(isFirstFaceVisible > -1){//on repart dans l'autre sens si la premier face etait deja visible
+        currentFace = isFirstFaceVisible; //on avait enregistré le voisin gauche
+        do{
+            int v1 = -1; 
+            int v2 = -1; 
+            for(size_t i = 0; i < 3; i++){
+                if(this->faces[currentFace].vertices[i] == borderLink){
+                    v1 = (i+1)%3;
+                    v2 = (i+2)%3;
+                }
+            }
+            assert(v1!=-1);
+            assert(v2!=-1);
+            int nextFace = this->faces[currentFace].neighbours[v1];
+            if(vec3::IsTrigoOriented(p,vertices[v1].coord, vertices[v2].coord)){//Visible
+                edgeFlip(currentFace, this->faces[currentFace].neighbours[v1]);//on flip avec la face a gauche
+            }
+            else {//si pas visible
+                break;
+            }
+            currentFace = this->faces[currentFace].neighbours[v2];
+        }while(currentFace!=firstFace);
+
+    }
 }
 
 const float EPSILON = 0.000001f;
@@ -471,6 +529,22 @@ int Mesh::isInside(const vec3& p, int faceIndex, int& edgeFace)const {
 
 
 std::vector<int> Mesh::getBorder() const{
-    
+    std::vector<int> borderFaces; 
+    int firstFace = this->vertices[borderLink].faceRef;
+    int currentFace = firstFace;
+    while(borderFaces.size()==0 || currentFace!=firstFace){
+        int v = -1; 
+        for(size_t i = 0; i < 3; i++){
+            if(this->faces[currentFace].vertices[i] == borderLink){
+                v = (i+1)%3;
+            }
+        }
+        assert(v!=-1);
+        borderFaces.push_back(currentFace);
+
+        currentFace = this->faces[currentFace].neighbours[v];
+    }
+
+    return borderFaces;
 }
 
