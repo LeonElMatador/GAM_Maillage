@@ -13,3 +13,14 @@ make
 
 Le maillage obtenu est écrit dans `OFF/random_50_points.off`. Le générateur
 utilise une graine fixe, ce qui rend les résultats reproductibles.
+
+## Test du laplacien 
+
+Pour générer les mesh colorés à partir de la courbure et de la diffusion thermique lancez :
+
+```sh
+make
+./tp1 ./OFF/queen.off
+```
+
+Un fichier `OFF/curvature.off` et des fichier `OFF/queen_xxxx.off` seront crées.
