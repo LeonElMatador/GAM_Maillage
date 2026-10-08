@@ -715,11 +715,6 @@ void Mesh::computeCurvature(){
         vec3 sum(0.0f, 0.0f, 0.0f);
         float surfaceSum = 0.0f;
         std::vector<int> neighbours = this->neighbours(i);
-        if (neighbours.size() < 2) {
-            laplacien[i] = vec3(0.0f, 0.0f, 0.0f);
-            curvature[i] = 0.0f;
-            continue;
-        }
 
         const int size = static_cast<int>(neighbours.size());
         for(int j = 0; j < size; ++j){
@@ -736,10 +731,6 @@ void Mesh::computeCurvature(){
             const float crossCABnorm = vec3::Cross(CA, CB).norm();
             const float crossDABnorm = vec3::Cross(DA, DB).norm();
 
-            if (crossCABnorm <= 1e-8f || crossDABnorm <= 1e-8f) {
-                continue;
-            }
-
             const float dotCAB = vec3::Dot(CA, CB);
             const float dotDAB = vec3::Dot(DA, DB);
             const float leftSurface = crossCABnorm / 2.0f;
@@ -751,19 +742,10 @@ void Mesh::computeCurvature(){
             sum = sum + (B - A) * (cotanC + cotanD);
         }
 
-        if (surfaceSum <= 1e-8f) {
-            laplacien[i] = vec3(0.0f, 0.0f, 0.0f);
-            curvature[i] = 0.0f;
-            continue;
-        }
 
+        surfaceSum=surfaceSum/3.0f;
         laplacien[i] = sum / (2.0f * surfaceSum);
         curvature[i] = laplacien[i].norm() / 2.0f;
-        if (!std::isfinite(curvature[i]) || !std::isfinite(laplacien[i].x) ||
-            !std::isfinite(laplacien[i].y) || !std::isfinite(laplacien[i].z)) {
-            laplacien[i] = vec3(0.0f, 0.0f, 0.0f);
-            curvature[i] = 0.0f;
-        }
     }
 }
 
