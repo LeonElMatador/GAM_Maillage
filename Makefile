@@ -5,7 +5,7 @@ TARGET := tp1
 SOURCES := $(wildcard *.cpp)
 OBJECTS := $(SOURCES:.cpp=.o)
 
-.PHONY: all check clean
+.PHONY: all check test clean
 
 all: $(TARGET)
 
@@ -17,6 +17,9 @@ $(TARGET): $(OBJECTS)
 
 check:
 	$(CXX) $(CXXFLAGS) -fsyntax-only $(SOURCES)
+
+test: $(TARGET)
+	./$(TARGET) --test
 
 clean:
 	$(RM) $(OBJECTS) $(TARGET)

@@ -1,6 +1,9 @@
 #include "Mesh.h"
 #include "ThermalState.h"
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -25,6 +28,31 @@ Mesh makeTestTetrahedron() {
     vertices[2].SetFaceRef(0);
     vertices[3].SetFaceRef(0);
     return Mesh(vertices, faces, -1);
+}
+
+Mesh makeSquareMesh() {
+    std::vector<Vertex> vertices{
+        Vertex(0.0f, 0.0f, 1.0f),
+        Vertex(-2.0f, -2.0f, 0.0f),
+        Vertex(2.0f, -2.0f, 0.0f),
+        Vertex(2.0f, 2.0f, 0.0f),
+        Vertex(-2.0f, 2.0f, 0.0f)
+    };
+    std::vector<Face> faces{
+        Face({1, 2, 4}, {1, 5, 2}),
+        Face({2, 3, 4}, {4, 0, 3}),
+        Face({0, 2, 1}, {0, 5, 3}),
+        Face({0, 3, 2}, {1, 2, 4}),
+        Face({0, 4, 3}, {1, 3, 5}),
+        Face({0, 1, 4}, {0, 4, 2})
+    };
+
+    vertices[0].SetFaceRef(2);
+    vertices[1].SetFaceRef(0);
+    vertices[2].SetFaceRef(0);
+    vertices[3].SetFaceRef(1);
+    vertices[4].SetFaceRef(0);
+    return Mesh(vertices, faces, 0);
 }
 
 bool hasEdge(const Face& face, int first, int second) {
@@ -92,6 +120,153 @@ int countFacesWithVertex(const Mesh& mesh, int vertexId) {
     return count;
 }
 
+bool writeFiniteMeshOFF(const Mesh& mesh, const std::string& fileName,
+                        const std::string& testName) {
+    if (mesh.borderLink < 0 || mesh.borderLink >= static_cast<int>(mesh.vertices.size())) {
+        std::cerr << "[ERREUR] " << testName << ": index de sommet à l'infini invalide\n";
+        return false;
+    }
+
+    std::error_code directoryError;
+    std::filesystem::create_directories("OFF", directoryError);
+    if (directoryError) {
+        std::cerr << "[ERREUR] " << testName << ": impossible de créer le dossier OFF: "
+                  << directoryError.message() << '\n';
+        return false;
+    }
+    std::ofstream file(std::filesystem::path("OFF") / fileName);
+    if (!file) {
+        std::cerr << "[ERREUR] " << testName << ": impossible d'écrire OFF/" << fileName << '\n';
+        return false;
+    }
+
+    std::vector<int> remappedVertexIds(mesh.vertices.size(), -1);
+    int finiteVertexCount = 0;
+    for (size_t vertexId = 0; vertexId < mesh.vertices.size(); ++vertexId) {
+        if (static_cast<int>(vertexId) != mesh.borderLink) {
+            remappedVertexIds[vertexId] = finiteVertexCount++;
+        }
+    }
+
+    int finiteFaceCount = 0;
+    for (const Face& face : mesh.faces) {
+        if (std::find(face.vertices.begin(), face.vertices.end(), mesh.borderLink) ==
+            face.vertices.end()) {
+            ++finiteFaceCount;
+        }
+    }
+
+    file << "OFF\n" << finiteVertexCount << ' ' << finiteFaceCount << " 0\n";
+    file << std::setprecision(9);
+    for (size_t vertexId = 0; vertexId < mesh.vertices.size(); ++vertexId) {
+        if (static_cast<int>(vertexId) == mesh.borderLink) continue;
+        const vec3& point = mesh.vertices[vertexId].coord;
+        file << point.x << ' ' << point.y << ' ' << point.z << '\n';
+    }
+
+    for (const Face& face : mesh.faces) {
+        if (std::find(face.vertices.begin(), face.vertices.end(), mesh.borderLink) !=
+            face.vertices.end()) {
+            continue;
+        }
+        file << "3";
+        for (int vertexId : face.vertices) {
+            if (vertexId < 0 || vertexId >= static_cast<int>(remappedVertexIds.size()) ||
+                remappedVertexIds[vertexId] < 0) {
+                std::cerr << "[ERREUR] " << testName << ": sommet invalide lors de l'export OFF\n";
+                return false;
+            }
+            file << ' ' << remappedVertexIds[vertexId];
+        }
+        file << '\n';
+    }
+
+    if (!file) {
+        std::cerr << "[ERREUR] " << testName << ": erreur pendant l'écriture de OFF/"
+                  << fileName << '\n';
+        return false;
+    }
+    std::cout << "Maillage exporté : OFF/" << fileName << '\n';
+    return true;
+}
+
+bool runTriangulationCase(const std::string& name, const std::vector<vec3>& points,
+                          int expectedBorderFaces, const std::string& offFileName) {
+    Mesh mesh = Mesh::Triangulize(points);
+    bool passed = checkMeshTopology(mesh, name);
+    passed = writeFiniteMeshOFF(mesh, offFileName, name) && passed;
+    const int borderVertex = mesh.borderLink;
+    const int expectedFaceCount = 2 * static_cast<int>(points.size()) - 2;
+
+    if (static_cast<int>(mesh.vertices.size()) != static_cast<int>(points.size()) + 1) {
+        std::cerr << "[ERREUR] " << name << ": nombre de sommets attendu "
+                  << points.size() + 1 << ", obtenu " << mesh.vertices.size() << '\n';
+        passed = false;
+    }
+    if (static_cast<int>(mesh.faces.size()) != expectedFaceCount) {
+        std::cerr << "[ERREUR] " << name << ": nombre de faces attendu "
+                  << expectedFaceCount << ", obtenu " << mesh.faces.size() << '\n';
+        passed = false;
+    }
+
+    int actualBorderFaces = 0;
+    for (size_t faceId = 0; faceId < mesh.faces.size(); ++faceId) {
+        const Face& face = mesh.faces[faceId];
+        bool containsBorder = std::find(face.vertices.begin(), face.vertices.end(), borderVertex) !=
+                              face.vertices.end();
+        if (containsBorder) {
+            ++actualBorderFaces;
+        } else if (vec3::IsTrigoOriented(mesh.vertices[face[0]].coord,
+                                         mesh.vertices[face[1]].coord,
+                                         mesh.vertices[face[2]].coord) != 1) {
+            std::cerr << "[ERREUR] " << name << ": la face finie " << faceId
+                      << " est dégénérée ou mal orientée\n";
+            passed = false;
+        }
+    }
+    if (actualBorderFaces != expectedBorderFaces) {
+        std::cerr << "[ERREUR] " << name << ": nombre de faces de bord attendu "
+                  << expectedBorderFaces << ", obtenu " << actualBorderFaces << '\n';
+        passed = false;
+    }
+
+    for (size_t vertexId = 1; vertexId < mesh.vertices.size(); ++vertexId) {
+        const int faceRef = mesh.vertices[vertexId].faceRef;
+        if (faceRef < 0 || faceRef >= static_cast<int>(mesh.faces.size()) ||
+            std::find(mesh.faces[faceRef].vertices.begin(), mesh.faces[faceRef].vertices.end(),
+                      static_cast<int>(vertexId)) == mesh.faces[faceRef].vertices.end()) {
+            std::cerr << "[ERREUR] " << name << ": faceRef invalide pour le sommet "
+                      << vertexId << '\n';
+            passed = false;
+        }
+    }
+
+    for (size_t pointId = 0; pointId < points.size(); ++pointId) {
+        const vec3& point = points[pointId];
+        bool found = false;
+        for (size_t vertexId = 1; vertexId < mesh.vertices.size(); ++vertexId) {
+            const vec3& coordinate = mesh.vertices[vertexId].coord;
+            if (coordinate.x == point.x && coordinate.y == point.y && coordinate.z == point.z) {
+                found = true;
+                if (countFacesWithVertex(mesh, static_cast<int>(vertexId)) == 0) {
+                    std::cerr << "[ERREUR] " << name << ": le sommet " << pointId
+                              << " n'appartient à aucune face\n";
+                    passed = false;
+                }
+                break;
+            }
+        }
+        if (!found) {
+            std::cerr << "[ERREUR] " << name << ": le point " << pointId
+                      << " est absent du maillage\n";
+            passed = false;
+        }
+    }
+
+    if (passed) std::cout << "[OK] " << name << '\n';
+    return passed;
+}
+
 bool runMeshTests() {
     int failures = 0;
 
@@ -105,8 +280,8 @@ bool runMeshTests() {
             std::cerr << "[ERREUR] " << name << ": un triangle antihoraire doit être orienté trigo\n";
             passed = false;
         }
-        if (vec3::IsTrigoOriented(a, c, b) ||
-            vec3::IsTrigoOriented(a, b, vec3(8.0f, 0.0f, 0.0f))) {
+        if (vec3::IsTrigoOriented(a, c, b) >= 0 ||
+            vec3::IsTrigoOriented(a, b, vec3(8.0f, 0.0f, 0.0f)) != 0) {
             std::cerr << "[ERREUR] " << name << ": un triangle horaire ou colinéaire ne doit pas être orienté trigo\n";
             passed = false;
         }
@@ -119,17 +294,20 @@ bool runMeshTests() {
         const vec3 a(0.0f, 0.0f, 0.0f);
         const vec3 b(4.0f, 0.0f, 0.0f);
         const vec3 c(0.0f, 4.0f, 0.0f);
+        Mesh triangle({Vertex(a), Vertex(b), Vertex(c)},
+                      {Face({0, 1, 2}, {0, 0, 0})}, -1);
         bool passed = true;
-        if (vec3::IsInside(vec3(1.0f, 1.0f, 0.0f), a, b, c) != 1) {
+        int edgeFace = -1;
+        if (triangle.isInside(vec3(1.0f, 1.0f, 0.0f), 0, edgeFace) != 1) {
             std::cerr << "[ERREUR] " << name << ": le point intérieur doit renvoyer 1\n";
             passed = false;
         }
-        if (vec3::IsInside(vec3(3.0f, 3.0f, 0.0f), a, b, c) != -1) {
+        if (triangle.isInside(vec3(3.0f, 3.0f, 0.0f), 0, edgeFace) != -1) {
             std::cerr << "[ERREUR] " << name << ": le point extérieur doit renvoyer -1\n";
             passed = false;
         }
-        if (vec3::IsInside(vec3(2.0f, 0.0f, 0.0f), a, b, c) != 0 ||
-            vec3::IsInside(a, a, b, c) != 0) {
+        if (triangle.isInside(vec3(2.0f, 0.0f, 0.0f), 0, edgeFace) != 0 ||
+            triangle.isInside(a, 0, edgeFace) != 0) {
             std::cerr << "[ERREUR] " << name << ": un point sur une arête ou un sommet doit renvoyer 0\n";
             passed = false;
         }
@@ -204,6 +382,46 @@ bool runMeshTests() {
         }
         if (passed) std::cout << "[OK] " << name << '\n';
         else ++failures;
+    }
+
+    {
+        if (!runTriangulationCase(
+                "Triangulize triangle + 1 point",
+                {vec3(-2.0f, -2.0f, 0.0f), vec3(2.0f, -2.0f, 0.0f),
+                 vec3(0.0f, 2.0f, 0.0f), vec3(0.0f, -0.5f, 0.0f)},
+                3, "triangle_plus_point.off")) {
+            ++failures;
+        }
+    }
+
+    {
+        const std::string name = "Ajout d'un point au carré";
+        Mesh mesh = makeSquareMesh();
+        mesh.addVerticesToTriangulation(vec3(0.0f, 0.5f, 0.0f));
+        bool passed = checkMeshTopology(mesh, name);
+        passed = writeFiniteMeshOFF(mesh, "square_plus_point.off", name) && passed;
+
+        if (mesh.vertices.size() != 6 || mesh.faces.size() != 8 ||
+            countFacesWithVertex(mesh, 5) != 3) {
+            std::cerr << "[ERREUR] " << name
+                      << ": le point ajouté doit créer un sommet et trois faces incidentes\n";
+            passed = false;
+        }
+        if (passed) std::cout << "[OK] " << name << '\n';
+        else ++failures;
+    }
+
+    {
+        if (!runTriangulationCase(
+                "Triangulize 10 points",
+                {vec3(-10.0f, -10.0f, 0.0f), vec3(10.0f, -10.0f, 0.0f),
+                 vec3(0.0f, 10.0f, 0.0f), vec3(-4.0f, -5.0f, 0.0f),
+                 vec3(4.0f, -5.0f, 0.0f), vec3(0.0f, -4.0f, 0.0f),
+                 vec3(-3.0f, 0.0f, 0.0f), vec3(3.0f, 0.0f, 0.0f),
+                 vec3(-2.0f, 3.0f, 0.0f), vec3(2.0f, 3.0f, 0.0f)},
+                3, "10_points.off")) {
+            ++failures;
+        }
     }
 
     if (failures == 0) {

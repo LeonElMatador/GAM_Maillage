@@ -26,6 +26,7 @@ class Mesh{
         static Mesh LoadTetrahedron();
         static void WriteOFF(const Mesh& mesh, const std::string& filePath);
         static Mesh ReadOFF(const std::string& filePath);
+        static Mesh Triangulize(const std::vector<vec3>& points);
 
         
         std::vector<float> laplacian(const std::vector<float>& values) const ;

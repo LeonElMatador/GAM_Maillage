@@ -220,7 +220,7 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
     vertices[A].SetFaceRef(PBAindex);
     vertices[B].SetFaceRef(PBAindex);
     vertices[C].SetFaceRef(PACindex);
-    newVertex.SetFaceRef(PBAindex);  
+    vertices[P].SetFaceRef(PBAindex);
 
     std::vector<int> voisinsPBA = {faces[faceId].neighbours[1], PACindex, PCBindex};
     std::vector<int> voisinsPAC = {faces[faceId].neighbours[2], PCBindex, PBAindex};
@@ -451,7 +451,9 @@ void Mesh::addVerticesToTriangulation(const vec3& p){
     int isFirstFaceVisible = -1;
     int currentFace = firstFace;
     bool hasSplit = false;
+    int it = -1;
     do{
+        it++;
         int v1 = -1; 
         int v2 = -1; 
         for(size_t i = 0; i < 3; i++){
@@ -466,7 +468,9 @@ void Mesh::addVerticesToTriangulation(const vec3& p){
         if(vec3::IsTrigoOriented(p,vertices[v1].coord, vertices[v2].coord)){//Visible
             if(firstFace == currentFace) isFirstFaceVisible = this->faces[currentFace].neighbours[v2];;//on enregistre le voisin gauche pour pouvoir repartir a gauche 
             if(!hasSplit){
-                faceSplit(currentFace, p);//! BUG ca devrait nous renvoyer les faces crées 
+                faceSplit(currentFace, p);//! BUG
+                if(nextFace>currentFace)nextFace--;
+                if(isFirstFaceVisible>currentFace)isFirstFaceVisible--;
                 hasSplit=true;
             }
             else{
@@ -478,12 +482,13 @@ void Mesh::addVerticesToTriangulation(const vec3& p){
             break;
         }
         currentFace = nextFace;
-    }while(currentFace!=firstFace);
+    }while(it<faces.size());//arret d'urgence
 
-
+    it=-1;
     if(isFirstFaceVisible > -1){//on repart dans l'autre sens si la premier face etait deja visible
         currentFace = isFirstFaceVisible; //on avait enregistré le voisin gauche
         do{
+            it++;
             int v1 = -1; 
             int v2 = -1; 
             for(size_t i = 0; i < 3; i++){
@@ -502,9 +507,35 @@ void Mesh::addVerticesToTriangulation(const vec3& p){
                 break;
             }
             currentFace = this->faces[currentFace].neighbours[v2];
-        }while(currentFace!=firstFace);
-
+        }while(it<faces.size());//arret d'urgence
     }
+}
+
+Mesh Mesh::Triangulize(const std::vector<vec3>& points){
+    Vertex infini(vec3(0,0,1));
+    Vertex v1(points[0]);
+    Vertex v2(points[1]);
+    Vertex v3(points[2]);
+
+    std::vector<Vertex> vertices{infini,v1,v2,v3};
+    vertices[1].SetFaceRef(0);
+    vertices[2].SetFaceRef(0);
+    vertices[3].SetFaceRef(0);
+    vertices[0].SetFaceRef(2);
+
+    std::vector<Face> faces{
+        Face({1, 2, 3}, {1, 2, 3}),
+        Face({2, 0, 3}, {2, 0, 3}),
+        Face({3, 0, 1}, {3, 0, 1}),
+        Face({1, 0, 2}, {1, 0, 2})
+    };
+
+    Mesh mesh(vertices, faces, 0);
+
+    for(int i = 3; i < points.size(); i++){
+        mesh.addVerticesToTriangulation(points[i]);
+    }
+    return mesh;
 }
 
 const float EPSILON = 0.000001f;
@@ -546,4 +577,3 @@ std::vector<int> Mesh::getBorder() const{
 
     return borderFaces;
 }
-
