@@ -285,38 +285,39 @@ std::vector<int> Mesh::neighbours(const int& vertex) const{
 }
 
 void Mesh::faceSplit(int faceId, vec3 newSommet) {
+    //on récupère les sommets de la face
     int A = faces[faceId][0];
     int C = faces[faceId][1];
     int B = faces[faceId][2];
-    //on récupère les sommets de la face
 
 
+    //on crée et ajoute le nouveau sommet
     Vertex newVertex = Vertex(newSommet);
     vertices.push_back(newVertex);
     int P = vertices.size() - 1;
-    //on crée et ajoute le nouveau sommet
 
+    //on crée les trois nouvelles faces
     Face PBA = Face({P, B, A});
     Face PAC = Face({P, A, C});
     Face PCB = Face({P, C, B});
-    //on crée les trois nouvelles faces
 
+    //on calcule les nouveaux index des nouvelles faces
     int PBAindex = faces.size();
     int PACindex = faces.size() + 1;
     int PCBindex = faces.size() + 2;
-    //on calcule les nouveaux index des nouvelles faces
 
+    //on change les faces des sommets par une des nouvelles faces créée (peu importe laquelle)
     vertices[A].SetFaceRef(PBAindex);
     vertices[B].SetFaceRef(PBAindex);
     vertices[C].SetFaceRef(PACindex);
     vertices[P].SetFaceRef(PBAindex);
-    //on change les faces des sommets par une des nouvelles faces créée (peu importe laquelle)
 
+    //on crée les listes de voisins des nouvelles faces
     std::vector<int> voisinsPBA = {faces[faceId].neighbours[1], PACindex, PCBindex};
     std::vector<int> voisinsPAC = {faces[faceId].neighbours[2], PCBindex, PBAindex};
     std::vector<int> voisinsPCB = {faces[faceId].neighbours[0], PBAindex, PACindex};
-    //on crée les listes de voisins des nouvelles faces
 
+    //attribution voisins, puis on ajoute les faces à la liste
     PBA.SetNeighbours(voisinsPBA);
     PAC.SetNeighbours(voisinsPAC);
     PCB.SetNeighbours(voisinsPCB);
@@ -324,13 +325,13 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
     faces.push_back(PBA);
     faces.push_back(PAC);
     faces.push_back(PCB);
-    //attribution voisins, puis on ajoute les faces à la liste
 
+    //on récupère les voisins de l'ancienne face
     int n0 = faces[faceId].neighbours[0];
     int n1 = faces[faceId].neighbours[1];
     int n2 = faces[faceId].neighbours[2];
-    //on récupère les voisins de l'ancienne face
 
+    //on update les faces opposées des anciens voisins par les nouvelles faces
     if (n0 != -1) {
         for (int i = 0; i < 3; i++)
             if (faces[n0].neighbours[i] == faceId)
@@ -346,15 +347,13 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
             if (faces[n2].neighbours[i] == faceId)
                 faces[n2].neighbours[i] = PACindex;
     }
-    //on update les faces opposées des anciens voisins par les nouvelles faces
-
-    if (vertices[A].faceRef == faceId) vertices[A].SetFaceRef(PBAindex); // A ∈ PBA et PAC
-    if (vertices[B].faceRef == faceId) vertices[B].SetFaceRef(PBAindex); // B ∈ PBA et PCB
-    if (vertices[C].faceRef == faceId) vertices[C].SetFaceRef(PACindex); // C ∈ PAC et PCB
     //si les sommets de la face avaient comme face adjacente la face supprimée, on la modifie
 
+    if (vertices[A].faceRef == faceId) vertices[A].SetFaceRef(PBAindex);
+    if (vertices[B].faceRef == faceId) vertices[B].SetFaceRef(PBAindex);
+    if (vertices[C].faceRef == faceId) vertices[C].SetFaceRef(PACindex); 
+
     deleteFace(faceId);
-    //appel à la fonction de suppression d'une face
 }
 
 void Mesh::edgeSplit(int face1, int face2, vec3 newSommet) {
