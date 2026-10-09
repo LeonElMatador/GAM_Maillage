@@ -3,6 +3,7 @@
 #include <filesystem>
 
 
+
 void ThermalState::computeLaplacian(const Mesh& m){
     for(int i = 0; i < m.vertices.size(); i++){
         double sum = 0;
@@ -16,7 +17,6 @@ void ThermalState::computeLaplacian(const Mesh& m){
             vec3 B = m.vertices[neighbours[j]].coord;
 
             //calcule cotangeante de voisin -1 
-            //BUG probleme de type entre size et le modulo + modulo d'unn bail negatif
             int size = static_cast<int>(neighbours.size());
             vec3 C = m.vertices[neighbours[(j-1+size)%size]].coord;
             vec3 CA = A - C;
@@ -26,7 +26,7 @@ void ThermalState::computeLaplacian(const Mesh& m){
             double dotCAB = vec3::Dot(CA,CB);
             
             //on prend l'air de la face de gauche au passage 
-            double leftSurface = crossCABnorm/2.0f;
+            double leftSurface = crossCABnorm/2.0;
             surfaceSum+=leftSurface;
 
             assert(crossCABnorm!=0);
@@ -90,8 +90,8 @@ void ThermalState::WriteCOFF(const Mesh& mesh, const std::string& filePath){
     coffFile.close();
 }
 
-vec3 ThermalState::getColor(int i){//Using only values between 100 and 0 degrees
-    const double value = std::clamp(heatValues[i], 0.0, 1000.0);
+vec3 ThermalState::getColor(int i){//Using only values between 1000 and 0 degrees
+    const double value = std::clamp(heatValues[i],0.0,100.0);
     const vec3 blue(0.0f, 0.0f, 1.0f);
     const vec3 cyan(0.0f, 1.0f, 1.0f);
     const vec3 green(0.0f, 1.0f, 0.0f);
