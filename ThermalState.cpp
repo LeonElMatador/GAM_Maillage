@@ -5,18 +5,20 @@
 
 
 void ThermalState::computeLaplacian(const Mesh& m){
+    //on calcule le laplacien de chaleur de chaque sommet
     for(int i = 0; i < m.vertices.size(); i++){
         double sum = 0;
         double surfaceSum = 0;
-        //Pour chaque voisin
+        //on récupère les voisins du sommet courant
         std::vector<int> neighbours = m.neighbours(i);
         assert(!neighbours.empty());
 
+        //on calcule la contribution de chaque voisin
         for(int j = 0; j< neighbours.size(); j++){
             vec3 A = m.vertices[i].coord;
             vec3 B = m.vertices[neighbours[j]].coord;
 
-            //calcule cotangeante de voisin -1 
+            //on récupère le voisin précédent pour calculer la première cotangente
             int size = static_cast<int>(neighbours.size());
             vec3 C = m.vertices[neighbours[(j-1+size)%size]].coord;
             vec3 CA = A - C;
@@ -25,14 +27,14 @@ void ThermalState::computeLaplacian(const Mesh& m){
             double crossCABnorm = vec3::Cross(CA, CB).norm();
             double dotCAB = vec3::Dot(CA,CB);
             
-            //on prend l'air de la face de gauche au passage 
-            double leftSurface = crossCABnorm/2.0;
+            //on ajoute l'aire du triangle de gauche à l'aire totale
+            double leftSurface = crossCABnorm/2.0f;
             surfaceSum+=leftSurface;
 
             assert(crossCABnorm!=0);
             double cotanC = dotCAB/crossCABnorm;
 
-            //calcule cotangeante de voisin +1 
+            //on récupère le voisin suivant pour calculer la deuxième cotangente
             vec3 D = m.vertices[neighbours[(j+1)%size]].coord;
             vec3 DA = A - D;
             vec3 DB = B - D;
@@ -44,9 +46,11 @@ void ThermalState::computeLaplacian(const Mesh& m){
             assert(crossDABnorm!=0);
             double cotanD = dotDAB/crossDABnorm;
 
-            //Difference entre les deux mult la diff entre les deux values
+            //on ajoute la différence de chaleur pondérée par les deux cotangentes
             sum+=(cotanC + cotanD) * (heatValues[neighbours[j]] - heatValues[i]);
         }
+
+        //on calcule le laplacien en divisant la somme par l'aire autour du sommet
         surfaceSum/=3.0f;
         assert(surfaceSum!=0);
         laplacian[i] = sum/(2.0f*surfaceSum);

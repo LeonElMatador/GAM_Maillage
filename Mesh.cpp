@@ -47,7 +47,7 @@ Mesh Mesh::LoadTetrahedron(){
 };
 
 
-void Mesh::WriteOFF(const Mesh& mesh, const std::string& filePath){
+void Mesh::WriteOFFWithCurvature(const Mesh& mesh, const std::string& filePath){
     //on associe un nouvel index à chaque sommet, sauf au sommet à l'infini
     std::vector<int> remappedVertexIds(mesh.vertices.size(), -1);
     int finiteVertexCount = 0;
@@ -79,6 +79,57 @@ void Mesh::WriteOFF(const Mesh& mesh, const std::string& filePath){
         if((int)(i) != mesh.borderLink){
             float normalizedCurvature = mesh.curvature[i] / maxCurvature;
             fileContent += mesh.vertices[i].coord.str() + " " + (mesh.curvatureToColor(normalizedCurvature)).str() +"\n";
+        }
+    }
+
+    for(const Face& face : mesh.faces){
+        if(std::find(face.vertices.begin(), face.vertices.end(), mesh.borderLink) != face.vertices.end()){
+            continue;
+        }
+        fileContent += "3";
+        for(int vertexId : face.vertices){
+            fileContent += " " + std::to_string(remappedVertexIds[vertexId]);
+        }
+        fileContent += "\n";
+    }
+
+    //on ouvre le fichier puis on y écrit le maillage fini
+    std::ofstream offFile(filePath);
+    if(offFile.is_open()){
+        offFile << fileContent;
+        std::cout << "OFF file saved successfully as " << filePath << std::endl;
+    }
+    else{
+        std::cerr << "Error while opening file : " << filePath << std::endl;
+    }
+    offFile.close();
+}
+
+void Mesh::WriteOFF(const Mesh& mesh, const std::string& filePath){
+    //on associe un nouvel index à chaque sommet, sauf au sommet à l'infini
+    std::vector<int> remappedVertexIds(mesh.vertices.size(), -1);
+    int finiteVertexCount = 0;
+    for(size_t i = 0; i < mesh.vertices.size(); i++){
+        if((int)(i) != mesh.borderLink){
+            remappedVertexIds[i] = finiteVertexCount++;
+        }
+    }
+
+    //on compte uniquement les faces qui ne contiennent pas le sommet à l'infini
+    int finiteFaceCount = 0;
+    for(const Face& face : mesh.faces){
+        if(std::find(face.vertices.begin(), face.vertices.end(), mesh.borderLink) == face.vertices.end()){
+            finiteFaceCount++;
+        }
+    }
+
+    std::string fileContent = "OFF\n";
+    fileContent += std::to_string(finiteVertexCount) + " ";
+    fileContent += std::to_string(finiteFaceCount) + " 0\n";
+
+    for(size_t i = 0; i < mesh.vertices.size(); i++){
+        if((int)(i) != mesh.borderLink){
+            fileContent += mesh.vertices[i].coord.str() +"\n";
         }
     }
 
@@ -682,6 +733,7 @@ std::vector<int> Mesh::getBorder() const{
 
 
 void Mesh::computeCurvature(){
+    //on prépare les tableaux pour stocker le laplacien et la courbure de chaque sommet
     curvature.resize(vertices.size());
     laplacien.resize(vertices.size());
     for(int i = 0; i < vertices.size(); i++){
@@ -731,7 +783,6 @@ void Mesh::computeCurvature(){
         curvature[i] = laplacien[i].norm() / 2.0f;
     }
 }
-
 
 vec3 Mesh::curvatureToColor(float c)const{
     double value = c;
