@@ -243,17 +243,17 @@ Mesh Mesh::ReadOFF(const std::string& filePath){
 
 std::vector<int> Mesh::neighbours(const int& vertex) const{ 
     std::vector<int> neighbours;
-    if (vertex < 0 || vertex >= static_cast<int>(this->vertices.size())) return neighbours;
+    if (vertex < 0 || vertex >= (int)(this->vertices.size())) return neighbours;
     if (this->borderLink >= 0 && vertex == this->borderLink) return neighbours;
 
     int firstFace = this->vertices[vertex].faceRef;
-    if (firstFace < 0 || firstFace >= static_cast<int>(this->faces.size())) return neighbours;
+    if (firstFace < 0 || firstFace >= (int)(this->faces.size())) return neighbours;
 
     int currentFace = firstFace;
     std::vector<int> visitedFaces;
     visitedFaces.push_back(currentFace);
 
-    for (int iter = 0; iter < static_cast<int>(this->faces.size()) * 3; ++iter) {
+    for (int iter = 0; iter < (int)(this->faces.size()) * 3; ++iter) {
         int localIndex = -1;
         for (int i = 0; i < 3; ++i) {
             if (this->faces[currentFace].vertices[i] == vertex) {
@@ -261,7 +261,7 @@ std::vector<int> Mesh::neighbours(const int& vertex) const{
                 break;
             }
         }
-        if (localIndex == -1 || currentFace < 0 || currentFace >= static_cast<int>(this->faces.size())) {
+        if (localIndex == -1 || currentFace < 0 || currentFace >= (int)(this->faces.size())) {
             break;
         }
 
@@ -701,53 +701,64 @@ std::vector<int> Mesh::getBorder() const{
 
 
 void Mesh::computeCurvature(){
+    //on prépare les tableaux pour stocker le laplacien et la courbure de chaque sommet
     curvature.resize(vertices.size());
     laplacien.resize(vertices.size());
 
-    for(int i = 0; i < static_cast<int>(vertices.size()); ++i){
+    //on calcule le laplacien et la courbure de chaque sommet
+    for(int i = 0; i < (int)(vertices.size()); ++i){
+        //on met à zéro les valeurs du sommet à l'infini
         if (i == borderLink) {
             laplacien[i] = vec3(0.0f, 0.0f, 0.0f);
             curvature[i] = 0.0f;
             continue;
         }
 
+        //on prépare la somme des contributions et l'aire autour du sommet
         vec3 sum(0.0f, 0.0f, 0.0f);
         float surfaceSum = 0.0f;
         std::vector<int> neighbours = this->neighbours(i);
 
-        const int size = static_cast<int>(neighbours.size());
+        //on calcule la contribution de chaque voisin
+        const int size = (int)(neighbours.size());
         for(int j = 0; j < size; ++j){
+            //on récupère le sommet courant, son voisin et les deux voisins autour
             const vec3 A = vertices[i].coord;
             const vec3 B = vertices[neighbours[j]].coord;
             const vec3 C = vertices[neighbours[(j - 1 + size) % size]].coord;
             const vec3 D = vertices[neighbours[(j + 1) % size]].coord;
 
+            //on calcule les vecteurs utiles pour les angles autour de l'arête AB
             const vec3 CA = A - C;
             const vec3 CB = B - C;
             const vec3 DA = A - D;
             const vec3 DB = B - D;
 
+            //on calcule les produits vectoriels et scalaires pour obtenir les cotangentes
             const float crossCABnorm = vec3::Cross(CA, CB).norm();
             const float crossDABnorm = vec3::Cross(DA, DB).norm();
 
             const float dotCAB = vec3::Dot(CA, CB);
             const float dotDAB = vec3::Dot(DA, DB);
+
+            //on ajoute l'aire du triangle de gauche à l'aire totale
             const float leftSurface = crossCABnorm / 2.0f;
             surfaceSum += leftSurface;
 
+            //on calcule les cotangentes des angles opposés à l'arête
             const float cotanC = dotCAB / crossCABnorm;
             const float cotanD = dotDAB / crossDABnorm;
 
+            //on ajoute la contribution pondérée de l'arête à la somme
             sum = sum + (B - A) * (cotanC + cotanD);
         }
 
-
+        //on divise l'aire par trois puis on calcule le laplacien et la courbure
         surfaceSum=surfaceSum/3.0f;
         laplacien[i] = sum / (2.0f * surfaceSum);
         curvature[i] = laplacien[i].norm() / 2.0f;
     }
 }
-
 
 vec3 Mesh::curvatureToColor(float c)const{
     const double value = c;
