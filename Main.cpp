@@ -45,7 +45,7 @@ void randomizeTriangulation(int pointCount) {
 void computeCurvature(const std::string& inputPath) {
     Mesh mesh = Mesh::ReadOFF(inputPath);
     mesh.computeCurvature();
-    Mesh::WriteOFFWithCurvature(mesh, "curvature.off");
+    Mesh::WriteOFFWithCurvature(mesh, "./OFF/curvature.off");
 }
 
 void runHeatSimulation(const std::string& inputPath, int totalSteps) {

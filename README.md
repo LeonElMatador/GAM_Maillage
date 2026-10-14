@@ -14,7 +14,7 @@ La courbure et la simulation thermique se lancent séparément. Pour calculer la
 make
 ./tp1 --curvature ./OFF/queen.off
 ```
-Le résultat est écrit dans curvature.off. Pour lancer la simulation thermique, indiquez le nombre d'itérations :
+Le résultat est écrit dans curvature.off. Pour lancer la simulation thermique, indiquez le nombre d'itérations (cela peut prendre un certain temps) :
 
 ```
 ./tp1 --heat ./OFF/queen.off 10000
