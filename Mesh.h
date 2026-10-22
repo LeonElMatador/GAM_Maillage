@@ -47,6 +47,13 @@ class Mesh{
 
         std::vector<int> getBorder()const;
 
+        //Delaunay
+        bool isInfiniteFace(int faceId) const;
+        bool isInCircumcircle(int faceId, const vec3& p) const;
+        bool isLocallyDelaunay(int face1, int face2) const;
+        int delaunayFlips();
+        static Mesh DelaunayTriangulize(const std::vector<vec3>& points);
+
         void computeCurvature();
         vec3 curvatureToColor(float c)const;
 };

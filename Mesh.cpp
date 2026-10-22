@@ -391,7 +391,7 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
 }
 
 void Mesh::edgeSplit(int face1, int face2, vec3 newSommet) {
-    if (face1 < 0 || face2 < 0 ||
+    if (face1 == face2 || face1 < 0 || face2 < 0 ||
         face1 >= (int)(faces.size()) ||
         face2 >= (int)(faces.size())) {
         return;
@@ -421,11 +421,11 @@ void Mesh::edgeSplit(int face1, int face2, vec3 newSommet) {
     int M = vertices.size() - 1;
     //on crée et ajoute le nouveau sommet
 
-    int T1index = faces.size();     // (opposé1, commun1, M)
-    int T2index = faces.size() + 1; // (opposé1, M, commun2)
-    int T3index = faces.size() + 2; // (opposé2, commun2, M)
-    int T4index = faces.size() + 3; // (opposé2, M, commun1)
-    //on calcule les nouveaux index des nouvelles faces
+    int T1index = face1;            // (opposé1, commun1, M)
+    int T2index = face2;            // (opposé1, M, commun2)
+    int T3index = faces.size();     // (opposé2, commun2, M)
+    int T4index = faces.size() + 1; // (opposé2, M, commun1)
+    //on réutilise les indices des anciennes faces et on ajoute deux nouvelles faces
 
     vertices[M].SetFaceRef(T1index);
     //on change la face du nouveau sommet par une des nouvelles faces créée (peu importe laquelle)
@@ -450,11 +450,11 @@ void Mesh::edgeSplit(int face1, int face2, vec3 newSommet) {
     T3.SetNeighbours({T2index, T4index, ext_f2_commun2});
     T4.SetNeighbours({T1index, ext_f2_commun1, T3index});
 
-    faces.push_back(T1);
-    faces.push_back(T2);
+    faces[face1] = T1;
+    faces[face2] = T2;
     faces.push_back(T3);
     faces.push_back(T4);
-    //on crée les listes de voisins, puis on ajoute les faces à la liste
+    //on crée les listes de voisins, puis on remplace les anciennes faces
 
     //on update les faces opposées des anciens voisins par les nouvelles faces
     if (ext_f1_2 != -1)
@@ -477,17 +477,6 @@ void Mesh::edgeSplit(int face1, int face2, vec3 newSommet) {
     if (vertices[commun1].faceRef == face2) vertices[commun1].SetFaceRef(T4index);
     if (vertices[commun2].faceRef == face1) vertices[commun2].SetFaceRef(T2index);
     if (vertices[commun2].faceRef == face2) vertices[commun2].SetFaceRef(T3index);
-
-    // Suppression de l'index le plus grand en premier, pour ne pas décaler l'autre
-    if (face1 > face2) {
-        deleteFace(face1);
-        deleteFace(face2);
-    } else {
-        deleteFace(face2);
-        deleteFace(face1);
-    }
-    //appel à la fonction de suppression des deux anciennes faces
-    const int firstNewFace = (int)(faces.size()) - 4;
 }
 
 void Mesh::edgeFlip(int face1, int face2) {
@@ -799,4 +788,104 @@ vec3 Mesh::curvatureToColor(float c)const{
     if (value < 0.55f) return vec3::Lerp(green, yellow, (value - 0.25f) / 0.30f);
     if (value < 0.90f) return vec3::Lerp(yellow, red, (value - 0.55f) / 0.35f);
     return red;
+}
+
+// ============================================================================
+//                         TRIANGULATION DE DELAUNAY
+// ============================================================================
+
+bool Mesh::isInfiniteFace(int faceId) const {
+    //TODO
+    //Une face est "infinie" (face de bord) si un de ses trois sommets est le
+    //sommet à l'infini (borderLink).
+    //Il suffit de parcourir les 3 sommets de faces[faceId] et de les comparer
+    //à borderLink.
+    //Utile car le sommet à l'infini a une coordonnée factice (0,0,1) : il ne
+    //faut jamais l'utiliser dans un calcul géométrique.
+    return false;
+}
+
+bool Mesh::isInCircumcircle(int faceId, const vec3& p) const {
+    //TODO
+    //Renvoie vrai si p est STRICTEMENT à l'intérieur du cercle circonscrit
+    //de la face faceId (A, B, C, supposée orientée dans le sens trigo, ce qui
+    //est le cas dans tout le maillage).
+    //
+    //Méthode : le prédicat "inCircle" par relèvement sur le paraboloïde.
+    // - on relève chaque point (x,y) en (x, y, x²+y²)
+    // - on se place relativement à p : pour chaque sommet S de la face,
+    //   on calcule le vecteur S - p (en 2D), puis sa 3e composante
+    //   z = (S-p).x² + (S-p).y²  (c'est aussi norm2() du vecteur en 2D)
+    // - on obtient ainsi trois vecteurs 3D a', b', c'
+    // - p est dans le cercle  <=>  le déterminant 3x3 [a' b' c'] est > 0
+    //   (pour A, B, C en sens trigo ; le signe s'inverse sinon)
+    //
+    //Astuce : le déterminant de trois vecteurs u, v, w est le produit mixte
+    //  Dot(u, Cross(v, w))  -> vec3::Cross et vec3::Dot existent déjà.
+    //
+    //Attention : bien remettre la composante z de S - p à la valeur relevée,
+    //et non au z d'origine du sommet. Comparer à un EPSILON plutôt qu'à 0
+    //pour éviter les flips infinis sur des points cocycliques.
+    return false;
+}
+
+bool Mesh::isLocallyDelaunay(int face1, int face2) const {
+    //TODO
+    //Une arête (commune à face1 et face2) est localement de Delaunay si le
+    //sommet opposé de face2 n'est pas dans le cercle circonscrit de face1
+    //(c'est symétrique, tester un seul côté suffit).
+    //
+    //Étapes :
+    // 1. retrouver l'indice local de l'arête commune dans face2 : c'est
+    //    l'indice i tel que faces[face2].neighbours[i] == face1 (même recherche
+    //    qu'au début de edgeFlip). Le sommet opposé est alors
+    //    faces[face2].vertices[i].
+    // 2. cas des faces infinies : si face1 ou face2 est infinie
+    //    (isInfiniteFace), on considère l'arête comme de Delaunay -> renvoyer
+    //    vrai. Les arêtes de l'enveloppe convexe ne doivent jamais être
+    //    flipées, et les arêtes reliées à l'infini non plus.
+    // 3. sinon, renvoyer la négation de isInCircumcircle(face1, coordonnée du
+    //    sommet opposé).
+    //
+    //Remarque : pour deux faces finies, si l'arête n'est pas de Delaunay, le
+    //quadrilatère formé est forcément convexe, donc le flip est toujours valide.
+    return true;
+}
+
+int Mesh::delaunayFlips() {
+    //TODO
+    //Algorithme naïf (Lawson) : on flip les arêtes non Delaunay jusqu'à ce
+    //qu'il n'y en ait plus. Renvoie le nombre total de flips effectués
+    //(pratique pour déboguer / pour le rapport).
+    //
+    //Structure :
+    // - une boucle "tant qu'on a flipé quelque chose lors du dernier passage"
+    // - à chaque passage, parcourir toutes les faces f, et pour chacun de ses
+    //   3 voisins g = faces[f].neighbours[j] :
+    //     * pour ne traiter chaque arête qu'une fois, ne regarder que les
+    //       couples avec f < g
+    //     * si !isLocallyDelaunay(f, g) -> edgeFlip(f, g), incrémenter le
+    //       compteur, et noter qu'un flip a eu lieu
+    // - edgeFlip réutilise les indices face1 et face2 (pas de suppression),
+    //   donc les indices restent valides pendant le parcours ; mais la face f
+    //   a changé de sommets/voisins : soit on passe directement à la face
+    //   suivante, soit on relit faces[f] avant de continuer.
+    //
+    //Terminaison : chaque flip fait strictement augmenter l'angle minimum de
+    //la triangulation, donc l'algo s'arrête (d'où l'importance de l'EPSILON
+    //dans isInCircumcircle). Une sécurité "nombre max de passages" peut être
+    //ajoutée, comme dans addVerticesToTriangulation.
+    return 0;
+}
+
+Mesh Mesh::DelaunayTriangulize(const std::vector<vec3>& points) {
+    //TODO
+    //Version naïve en deux temps :
+    // 1. construire une triangulation quelconque avec Triangulize(points)
+    // 2. appeler delaunayFlips() sur le maillage obtenu, puis le renvoyer
+    //
+    //(Variante plus efficace, pour plus tard : après chaque insertion dans
+    //addVerticesToTriangulation, ne vérifier que les arêtes autour du nouveau
+    //sommet et propager les flips localement.)
+    return Triangulize(points);
 }
