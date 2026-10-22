@@ -7,6 +7,7 @@
 #include <limits>
 #include <map>
 #include <array>
+#include <queue>
 #include <cassert>
 #include "vec3.h"
 
@@ -50,11 +51,12 @@ class Mesh{
         //Delaunay
         //outils
         bool isInfiniteFace(int faceId) const;
-        bool isInCircumcircle(int faceId, const vec3& p) const;
+        bool isInCircumcircle(int faceId, const vec3& s) const;
         //prédicat : l'arête commune à face1 et face2 est-elle localement de Delaunay ?
         bool isLocallyDelaunay(int face1, int face2) const;
-        //algorithme de Lawson sur une liste d'arêtes (couples de faces adjacentes)
-        int lawson(std::vector<std::pair<int,int>> edges);
+        //algorithme de Lawson sur une file d'arêtes (couples de faces adjacentes)
+        //newVertex : sommet inséré (cas incrémental), -1 sinon
+        int lawson(std::queue<std::pair<int,int>> edges, int newVertex = -1);
         //triangulation naïve -> triangulation de Delaunay (Lawson sur toutes les arêtes)
         int naiveToDelaunay();
         //insertion d'un point dans une triangulation de Delaunay (Lawson sur quelques arêtes seulement)

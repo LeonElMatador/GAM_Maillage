@@ -791,86 +791,79 @@ vec3 Mesh::curvatureToColor(float c)const{
 }
 
 
-// ============================================================================
-//                         TRIANGULATION DE DELAUNAY
-// ============================================================================
-//Convention utilisée partout : une arête est représentée par le couple de
-//faces (face1, face2) qui la partagent. edgeFlip garde les indices face1 et
-//face2, et après un flip ces deux faces sont toujours voisines : le couple
-//(face1, face2) désigne alors la NOUVELLE arête.
+// DELAUNAY
+
 
 bool Mesh::isInfiniteFace(int faceId) const {
-    //TODO
-    //Une face est "infinie" (face de bord) si un de ses trois sommets est le
-    //sommet à l'infini (borderLink).
-    //Il suffit de comparer les 3 sommets de faces[faceId] à borderLink.
-    //Utile car le sommet à l'infini a une coordonnée factice (0,0,1) : il ne
-    //faut jamais l'utiliser dans un calcul géométrique.
-    return false;
+
+    for(int i=0; i<3; i++) {
+        if (faces[faceId][i] == this->borderLink) return true;
+    }
+    return false; 
 }
 
-bool Mesh::isInCircumcircle(int faceId, const vec3& p) const {
-    //TODO
-    //Renvoie vrai si p est STRICTEMENT à l'intérieur du cercle circonscrit de
-    //la face faceId (A, B, C en sens trigo, comme dans tout le maillage).
-    //
-    //Méthode : prédicat "inCircle" par relèvement sur le paraboloïde.
-    // - pour chaque sommet S de la face, on calcule S - p en 2D, et on remplace
-    //   sa composante z par (S-p).x² + (S-p).y²
-    // - on obtient trois vecteurs 3D a', b', c'
-    // - p est dans le cercle  <=>  det[a' b' c'] > 0  (A, B, C en sens trigo)
-    //
-    //Astuce : det(u, v, w) = Dot(u, Cross(v, w)) -> vec3::Cross et vec3::Dot
-    //existent déjà.
-    //Comparer à EPSILON plutôt qu'à 0 : sinon, avec 4 points cocycliques, on
-    //flipperait la même arête à l'infini.
-    return false;
+bool Mesh::isInCircumcircle(int faceId, const vec3& s) const {
+
+    vec3 aprime = vertices[faces[faceId][0]].coord - s;
+    aprime.z = aprime.x * aprime.x + aprime.y * aprime.y;
+
+    vec3 bprime = vertices[faces[faceId][1]].coord - s;
+    bprime.z = bprime.x * bprime.x + bprime.y * bprime.y;
+
+    vec3 cprime = vertices[faces[faceId][2]].coord - s;
+    cprime.z = cprime.x * cprime.x + cprime.y * cprime.y;
+
+    return (vec3::Dot(aprime, vec3::Cross(bprime,cprime))) < -EPSILON;
 }
 
 bool Mesh::isLocallyDelaunay(int face1, int face2) const {
-    //TODO
-    //PRÉDICAT DEMANDÉ.
-    //L'arête commune à face1 et face2 est localement de Delaunay si le sommet
-    //de face2 opposé à l'arête n'est pas dans le cercle circonscrit de face1
-    //(la propriété est symétrique, un seul test suffit).
-    //
-    //Étapes :
-    // 1. retrouver l'indice local i de l'arête dans face2 :
-    //    faces[face2].neighbours[i] == face1 (comme au début de edgeFlip).
-    //    Le sommet opposé est faces[face2].vertices[i].
-    //    Si on ne trouve pas i, les faces ne sont pas voisines : renvoyer vrai.
-    // 2. si face1 ou face2 est infinie -> renvoyer vrai. On ne flippe jamais
-    //    une arête de l'enveloppe convexe ni une arête reliée à l'infini.
-    // 3. sinon renvoyer !isInCircumcircle(face1, coordonnée du sommet opposé).
-    //
-    //Remarque : pour deux faces finies, si l'arête n'est pas de Delaunay, le
-    //quadrilatère est forcément convexe, donc le flip est toujours valide.
-    return true;
+
+    int sommetOpposé=-1;
+    for (int i = 0; i < 3; ++i) {
+        if (faces[face1].neighbours[i] == face2 && faces[face2].neighbours[i] == face1) sommetOpposé=faces[face2].vertices[i];
+    }
+
+    if (sommetOpposé<0) return true; // si pas voisins on renvoie vrai
+
+    if(isInfiniteFace(face1) | isInfiniteFace(face2)) return true; // si l'une des deux faces est connectée au sommet infini
+
+    return !isInCircumcircle(face1, vertices[sommetOpposé].coord);
 }
 
-int Mesh::lawson(std::vector<std::pair<int,int>> edges) {
+int Mesh::lawson(std::queue<std::pair<int,int>> edges, int newVertex) {
     //TODO
-    //ALGORITHME DE LAWSON (vu en cours), utilisé par les deux procédures
-    //suivantes. Il prend la liste initiale des arêtes à vérifier et renvoie
-    //le nombre de flips effectués (pratique pour le rapport).
+    //ALGORITHME DE LAWSON (cours 1, slides 107 à 113), utilisé par les deux
+    //procédures suivantes. Renvoie le nombre de flips effectués (pratique
+    //pour le rapport).
     //
-    //Principe : edges sert de pile (ou de file) d'arêtes "suspectes".
-    // tant que edges n'est pas vide :
-    //   - retirer une arête (f, g)
+    //Comme dans le cours, edges est une FILE (FIFO) d'arêtes à vérifier :
+    //front() pour lire la plus ancienne, pop() pour la retirer, push() pour
+    //en ajouter une à la fin.
+    // tant que la file n'est pas vide :
+    //   - retirer l'arête (f, g) en tête de file
     //   - si f et g ne sont plus voisines (un flip précédent a pu changer
     //     l'arête), l'ignorer
     //   - si isLocallyDelaunay(f, g) : rien à faire
     //   - sinon :
     //       * edgeFlip(f, g), compter le flip
-    //       * les 4 arêtes extérieures du quadrilatère flippé peuvent ne plus
-    //         être de Delaunay : les ajouter à edges. Ce sont les couples
-    //         (f, voisin) et (g, voisin) pour les voisins de f et de g autres
-    //         que f et g eux-mêmes, lus APRÈS le flip.
+    //       * ajouter à la file les arêtes du bord du quadrilatère flippé,
+    //         qui peuvent ne plus être de Delaunay. Ce sont les couples
+    //         (f, voisin) et (g, voisin), avec les voisins de f et de g autres
+    //         que f et g eux-mêmes, lus APRÈS le flip :
+    //           - newVertex == -1 (cas global) : ajouter les 4
+    //           - newVertex != -1 (cas de l'insertion, cours 2 slides 155 à
+    //             157) : n'ajouter que les 2 arêtes "vertes", celles qui ne
+    //             touchent PAS newVertex. Les 2 autres touchent le point
+    //             inséré et sont forcément de Delaunay. Pour savoir si une
+    //             arête (f, voisin) touche newVertex : dans f, l'arête opposée
+    //             au sommet d'indice local i est celle vers neighbours[i]. Elle
+    //             touche newVertex sauf si vertices[i] == newVertex.
     //       * pas besoin de remettre (f, g) : la nouvelle arête est de Delaunay.
     //
-    //Terminaison : chaque flip fait augmenter le vecteur des angles de la
-    //triangulation (ordre lexicographique), donc l'algorithme s'arrête.
-    //Une sécurité "nombre max d'itérations" peut être ajoutée.
+    //Terminaison (slide 113) : chaque flip améliore les angles de la
+    //triangulation, et il y a un nombre fini de triangulations.
+    //Complexité (slides 126 à 129) : une arête flippée ne réapparaît jamais,
+    //donc au plus n(n-1)/2 flips, soit O(n²). C'est bien moins en pratique.
     return 0;
 }
 
@@ -879,10 +872,15 @@ int Mesh::naiveToDelaunay() {
     //PROCÉDURE DEMANDÉE : triangulation naïve -> triangulation de Delaunay.
     //Le maillage (construit par exemple avec Triangulize) est modifié sur place.
     //
-    // - construire la liste de TOUTES les arêtes du maillage : pour chaque
-    //   face f et chacun de ses 3 voisins g, ajouter (f, g) uniquement si
-    //   f < g, pour n'avoir chaque arête qu'une seule fois
-    // - appeler lawson sur cette liste et renvoyer son résultat
+    //Cours 1, slide 108 : "push non-locally Delaunay edges into a queue,
+    //flip them iteratively".
+    // - parcourir TOUTES les arêtes du maillage : pour chaque face f et
+    //   chacun de ses 3 voisins g, ne regarder (f, g) que si f < g, pour ne
+    //   voir chaque arête qu'une seule fois
+    // - ne mettre dans la file que celles qui ne sont pas localement de
+    //   Delaunay (!isLocallyDelaunay(f, g))
+    // - appeler lawson(file) sans newVertex (cas global : les 4 arêtes
+    //   voisines d'un flip sont remises dans la file) et renvoyer son résultat
     return 0;
 }
 
@@ -894,17 +892,29 @@ int Mesh::insertPointDelaunay(const vec3& p) {
     // 1. insérer p avec addVerticesToTriangulation(p). Toutes les insertions
     //    (faceSplit, edgeSplit, cas extérieur) ajoutent le sommet à la fin :
     //    son indice est donc vertices.size() - 1.
-    // 2. seules les arêtes OPPOSÉES au nouveau sommet peuvent ne plus être de
-    //    Delaunay (les autres n'ont pas bougé, et celles qui touchent p sont
-    //    neuves). Pour les trouver, tourner autour du nouveau sommet en partant
-    //    de vertices[nouveau].faceRef (comme dans Mesh::neighbours) : pour
-    //    chaque face f incidente, si i est l'indice local du nouveau sommet
-    //    dans f, l'arête opposée est le couple (f, faces[f].neighbours[i]).
-    //    Attention : si p est à l'extérieur, le tour autour du sommet passe
+    // 2. remplir la file initiale (cours 2, slides 153 et 154). Seules les
+    //    arêtes OPPOSÉES au nouveau sommet peuvent ne plus être de Delaunay :
+    //    les arêtes qui touchent p sont neuves et ne peuvent pas être flippées,
+    //    et les autres n'ont pas changé de triangles incidents. Selon le cas :
+    //      - faceSplit : les 3 arêtes du triangle Δ qui contenait p
+    //      - edgeSplit : les 4 arêtes du bord des deux triangles coupés
+    //      - p hors de l'enveloppe convexe (slide 159) : les anciennes arêtes
+    //        de bord vues depuis p
+    //    Une seule méthode couvre les trois cas : tourner autour du nouveau
+    //    sommet en partant de vertices[nouveau].faceRef (comme dans
+    //    Mesh::neighbours). Pour chaque face f incidente, si i est l'indice
+    //    local du nouveau sommet dans f, l'arête opposée est le couple
+    //    (f, faces[f].neighbours[i]). Si p est à l'extérieur, le tour passe
     //    par des faces infinies, ce qui est normal (isLocallyDelaunay renvoie
     //    vrai pour elles).
-    // 3. appeler lawson sur cette petite liste et renvoyer son résultat. Les
-    //    flips se propagent tout seuls grâce aux arêtes que lawson rajoute.
+    // 3. appeler lawson(file, nouveau sommet) et renvoyer son résultat. Grâce
+    //    à newVertex, chaque flip ne remet que les 2 arêtes "vertes" dans la
+    //    file (slides 155 à 157).
+    //
+    //Complexité (slide 158) : si p a i arêtes incidentes à la fin, on fait
+    //i - 3 flips (chaque flip crée une arête incidente à p) et environ i
+    //tests de plus sur le bord vert. Pratique à vérifier avec le compteur
+    //renvoyé, pour le rapport.
     //
     //Pour construire une triangulation de Delaunay incrémentale, il suffit
     //d'appeler insertPointDelaunay pour chaque point, à la place de
