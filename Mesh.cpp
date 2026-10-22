@@ -336,7 +336,7 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
     //on calcule les nouveaux index des nouvelles faces
     int PBAindex = faces.size();
     int PACindex = faces.size() + 1;
-    int PCBindex = faces.size() + 2;
+    int PCBindex = faceId;
 
     //on change les faces des sommets par une des nouvelles faces créée (peu importe laquelle)
     vertices[A].SetFaceRef(PBAindex);
@@ -356,19 +356,21 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
 
     faces.push_back(PBA);
     faces.push_back(PAC);
-    faces.push_back(PCB);
+    //faces.push_back(PCB);
 
     //on récupère les voisins de l'ancienne face
     int n0 = faces[faceId].neighbours[0];
     int n1 = faces[faceId].neighbours[1];
     int n2 = faces[faceId].neighbours[2];
+    
+    faces[faceId] = PCB;
 
     //on update les faces opposées des anciens voisins par les nouvelles faces
-    if (n0 != -1) {
+    /*if (n0 != -1) {
         for (int i = 0; i < 3; i++)
             if (faces[n0].neighbours[i] == faceId)
                 faces[n0].neighbours[i] = PCBindex;
-    }
+    }*/
     if (n1 != -1) {
         for (int i = 0; i < 3; i++)
             if (faces[n1].neighbours[i] == faceId)
@@ -385,7 +387,7 @@ void Mesh::faceSplit(int faceId, vec3 newSommet) {
     if (vertices[B].faceRef == faceId) vertices[B].SetFaceRef(PBAindex);
     if (vertices[C].faceRef == faceId) vertices[C].SetFaceRef(PACindex); 
 
-    deleteFace(faceId);
+    //deleteFace(faceId);
 }
 
 void Mesh::edgeSplit(int face1, int face2, vec3 newSommet) {
@@ -604,8 +606,8 @@ void Mesh::addVerticesToTriangulation(const vec3& p){
             if(!hasSplit){
                 faceSplit(currentFace, p);
                 //une face vient d'etre supprimée
-                if(nextFace>currentFace)nextFace--;
-                if(isFirstFaceVisible>currentFace)isFirstFaceVisible--;
+                /*if(nextFace>currentFace)nextFace--;
+                if(isFirstFaceVisible>currentFace)isFirstFaceVisible--;*/
                 hasSplit=true;
             }
             else{
