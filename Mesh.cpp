@@ -648,6 +648,8 @@ Mesh Mesh::Triangulize(const std::vector<vec3>& points){
     Vertex v1(points[0]);
     Vertex v2(points[1]);
     Vertex v3(points[2]);
+    //le premier triangle doit être orienté dans le sens trigo (cours, slide 89)
+    if(vec3::IsTrigoOriented(points[0], points[1], points[2]) < 0) std::swap(v2, v3);
 
     std::vector<Vertex> vertices{infini,v1,v2,v3};
     //on initialise les faces de référence des sommets
@@ -804,120 +806,90 @@ bool Mesh::isInfiniteFace(int faceId) const {
 
 bool Mesh::isInCircumcircle(int faceId, const vec3& s) const {
 
-    vec3 aprime = vertices[faces[faceId][0]].coord - s;
-    aprime.z = aprime.x * aprime.x + aprime.y * aprime.y;
+   const vec3& p = vertices[faces[faceId][0]].coord;
 
-    vec3 bprime = vertices[faces[faceId][1]].coord - s;
-    bprime.z = bprime.x * bprime.x + bprime.y * bprime.y;
+    vec3 qprime = vertices[faces[faceId][1]].coord - p;
+    qprime.z = qprime.x * qprime.x + qprime.y * qprime.y;
 
-    vec3 cprime = vertices[faces[faceId][2]].coord - s;
-    cprime.z = cprime.x * cprime.x + cprime.y * cprime.y;
+    vec3 rprime = vertices[faces[faceId][2]].coord - p;
+    rprime.z = rprime.x * rprime.x + rprime.y * rprime.y;
 
-    return (vec3::Dot(aprime, vec3::Cross(bprime,cprime))) < -EPSILON;
+    vec3 sprime = s - p;
+    sprime.z = sprime.x * sprime.x + sprime.y * sprime.y;
+
+    return vec3::Dot(vec3::Cross(qprime, rprime), sprime) < -EPSILON;
 }
+
 
 bool Mesh::isLocallyDelaunay(int face1, int face2) const {
 
     int sommetOpposé=-1;
     for (int i = 0; i < 3; ++i) {
-        if (faces[face1].neighbours[i] == face2 && faces[face2].neighbours[i] == face1) sommetOpposé=faces[face2].vertices[i];
+        if (faces[face2].neighbours[i] == face1) sommetOpposé=faces[face2].vertices[i];
     }
 
     if (sommetOpposé<0) return true; // si pas voisins on renvoie vrai
 
-    if(isInfiniteFace(face1) | isInfiniteFace(face2)) return true; // si l'une des deux faces est connectée au sommet infini
+    if(isInfiniteFace(face1) || isInfiniteFace(face2)) return true; // si l'une des deux faces est connectée au sommet infini
 
     return !isInCircumcircle(face1, vertices[sommetOpposé].coord);
 }
 
-int Mesh::lawson(std::queue<std::pair<int,int>> edges, int newVertex) {
-    //TODO
-    //ALGORITHME DE LAWSON (cours 1, slides 107 à 113), utilisé par les deux
-    //procédures suivantes. Renvoie le nombre de flips effectués (pratique
-    //pour le rapport).
-    //
-    //Comme dans le cours, edges est une FILE (FIFO) d'arêtes à vérifier :
-    //front() pour lire la plus ancienne, pop() pour la retirer, push() pour
-    //en ajouter une à la fin.
-    // tant que la file n'est pas vide :
-    //   - retirer l'arête (f, g) en tête de file
-    //   - si f et g ne sont plus voisines (un flip précédent a pu changer
-    //     l'arête), l'ignorer
-    //   - si isLocallyDelaunay(f, g) : rien à faire
-    //   - sinon :
-    //       * edgeFlip(f, g), compter le flip
-    //       * ajouter à la file les arêtes du bord du quadrilatère flippé,
-    //         qui peuvent ne plus être de Delaunay. Ce sont les couples
-    //         (f, voisin) et (g, voisin), avec les voisins de f et de g autres
-    //         que f et g eux-mêmes, lus APRÈS le flip :
-    //           - newVertex == -1 (cas global) : ajouter les 4
-    //           - newVertex != -1 (cas de l'insertion, cours 2 slides 155 à
-    //             157) : n'ajouter que les 2 arêtes "vertes", celles qui ne
-    //             touchent PAS newVertex. Les 2 autres touchent le point
-    //             inséré et sont forcément de Delaunay. Pour savoir si une
-    //             arête (f, voisin) touche newVertex : dans f, l'arête opposée
-    //             au sommet d'indice local i est celle vers neighbours[i]. Elle
-    //             touche newVertex sauf si vertices[i] == newVertex.
-    //       * pas besoin de remettre (f, g) : la nouvelle arête est de Delaunay.
-    //
-    //Terminaison (slide 113) : chaque flip améliore les angles de la
-    //triangulation, et il y a un nombre fini de triangulations.
-    //Complexité (slides 126 à 129) : une arête flippée ne réapparaît jamais,
-    //donc au plus n(n-1)/2 flips, soit O(n²). C'est bien moins en pratique.
-    return 0;
+int Mesh::lawson(std::queue<std::pair<int,int>> edges) {
+    int total=0;
+    while (!edges.empty()) {
+        auto edge = edges.front();
+        edges.pop();
+
+        if (isLocallyDelaunay(edge.first, edge.second)) continue;
+
+        edgeFlip(edge.first, edge.second);
+        total++;
+        for (int i =0; i<3; i++) {
+            if (faces[edge.first].neighbours[i]!=edge.second) edges.push(std::pair(edge.first, faces[edge.first].neighbours[i]));
+            if (faces[edge.second].neighbours[i]!=edge.first) edges.push(std::pair(edge.second, faces[edge.second].neighbours[i]));
+        }
+    }
+    return total;
 }
 
 int Mesh::naiveToDelaunay() {
-    //TODO
-    //PROCÉDURE DEMANDÉE : triangulation naïve -> triangulation de Delaunay.
-    //Le maillage (construit par exemple avec Triangulize) est modifié sur place.
-    //
-    //Cours 1, slide 108 : "push non-locally Delaunay edges into a queue,
-    //flip them iteratively".
-    // - parcourir TOUTES les arêtes du maillage : pour chaque face f et
-    //   chacun de ses 3 voisins g, ne regarder (f, g) que si f < g, pour ne
-    //   voir chaque arête qu'une seule fois
-    // - ne mettre dans la file que celles qui ne sont pas localement de
-    //   Delaunay (!isLocallyDelaunay(f, g))
-    // - appeler lawson(file) sans newVertex (cas global : les 4 arêtes
-    //   voisines d'un flip sont remises dans la file) et renvoyer son résultat
-    return 0;
+
+    std::queue<std::pair<int,int>> edges;
+    for(int i=0; i<faces.size(); i++) {
+        for(int j=0; j<3; j++) {
+            if( i < faces[i].neighbours[j]) {
+                if (!isLocallyDelaunay(i, faces[i].neighbours[j]))
+                    edges.push(std::pair(i, faces[i].neighbours[j]));
+            }
+        }
+    }
+    return lawson(edges);
 }
 
 int Mesh::insertPointDelaunay(const vec3& p) {
-    //TODO
-    //PROCÉDURE DEMANDÉE : mise à jour d'une triangulation DÉJÀ de Delaunay
-    //après insertion de p, en n'appliquant Lawson qu'à quelques arêtes.
-    //
-    // 1. insérer p avec addVerticesToTriangulation(p). Toutes les insertions
-    //    (faceSplit, edgeSplit, cas extérieur) ajoutent le sommet à la fin :
-    //    son indice est donc vertices.size() - 1.
-    // 2. remplir la file initiale (cours 2, slides 153 et 154). Seules les
-    //    arêtes OPPOSÉES au nouveau sommet peuvent ne plus être de Delaunay :
-    //    les arêtes qui touchent p sont neuves et ne peuvent pas être flippées,
-    //    et les autres n'ont pas changé de triangles incidents. Selon le cas :
-    //      - faceSplit : les 3 arêtes du triangle Δ qui contenait p
-    //      - edgeSplit : les 4 arêtes du bord des deux triangles coupés
-    //      - p hors de l'enveloppe convexe (slide 159) : les anciennes arêtes
-    //        de bord vues depuis p
-    //    Une seule méthode couvre les trois cas : tourner autour du nouveau
-    //    sommet en partant de vertices[nouveau].faceRef (comme dans
-    //    Mesh::neighbours). Pour chaque face f incidente, si i est l'indice
-    //    local du nouveau sommet dans f, l'arête opposée est le couple
-    //    (f, faces[f].neighbours[i]). Si p est à l'extérieur, le tour passe
-    //    par des faces infinies, ce qui est normal (isLocallyDelaunay renvoie
-    //    vrai pour elles).
-    // 3. appeler lawson(file, nouveau sommet) et renvoyer son résultat. Grâce
-    //    à newVertex, chaque flip ne remet que les 2 arêtes "vertes" dans la
-    //    file (slides 155 à 157).
-    //
-    //Complexité (slide 158) : si p a i arêtes incidentes à la fin, on fait
-    //i - 3 flips (chaque flip crée une arête incidente à p) et environ i
-    //tests de plus sur le bord vert. Pratique à vérifier avec le compteur
-    //renvoyé, pour le rapport.
-    //
-    //Pour construire une triangulation de Delaunay incrémentale, il suffit
-    //d'appeler insertPointDelaunay pour chaque point, à la place de
-    //addVerticesToTriangulation dans Triangulize.
-    return 0;
+    addVerticesToTriangulation(p);
+
+
+    std::queue<std::pair<int,int>> edges;
+
+    int firstFace = this->vertices[vertices.size()-1].faceRef;
+    int currentFace = firstFace;
+    while(edges.empty() || currentFace!=firstFace){
+        int neigh = -1; 
+        for(size_t i = 0; i < 3; i++){
+            if(this->faces[currentFace].vertices[i] == vertices.size()-1){
+                edges.push(std::pair(currentFace, faces[currentFace].neighbours[i]));
+                neigh = (i+1)%3;
+            }
+        }
+        assert(neigh!=-1);
+        currentFace = this->faces[currentFace].neighbours[neigh];
+    }
+
+    return lawson(edges);
+}
+
+bool Mesh::isDelaunay() {
+    return naiveToDelaunay()==0;
 }

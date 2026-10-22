@@ -56,12 +56,12 @@ class Mesh{
         bool isLocallyDelaunay(int face1, int face2) const;
         //algorithme de Lawson sur une file d'arêtes (couples de faces adjacentes)
         //newVertex : sommet inséré (cas incrémental), -1 sinon
-        int lawson(std::queue<std::pair<int,int>> edges, int newVertex = -1);
+        int lawson(std::queue<std::pair<int,int>> edges);
         //triangulation naïve -> triangulation de Delaunay (Lawson sur toutes les arêtes)
-        int naiveToDelaunay();
+        bool naiveToDelaunay();
         //insertion d'un point dans une triangulation de Delaunay (Lawson sur quelques arêtes seulement)
         int insertPointDelaunay(const vec3& p);
-
+        int isDelaunay();
         void computeCurvature();
         vec3 curvatureToColor(float c)const;
 };
