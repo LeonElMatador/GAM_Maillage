@@ -48,11 +48,17 @@ class Mesh{
         std::vector<int> getBorder()const;
 
         //Delaunay
+        //outils
         bool isInfiniteFace(int faceId) const;
         bool isInCircumcircle(int faceId, const vec3& p) const;
+        //prédicat : l'arête commune à face1 et face2 est-elle localement de Delaunay ?
         bool isLocallyDelaunay(int face1, int face2) const;
-        int delaunayFlips();
-        static Mesh DelaunayTriangulize(const std::vector<vec3>& points);
+        //algorithme de Lawson sur une liste d'arêtes (couples de faces adjacentes)
+        int lawson(std::vector<std::pair<int,int>> edges);
+        //triangulation naïve -> triangulation de Delaunay (Lawson sur toutes les arêtes)
+        int naiveToDelaunay();
+        //insertion d'un point dans une triangulation de Delaunay (Lawson sur quelques arêtes seulement)
+        int insertPointDelaunay(const vec3& p);
 
         void computeCurvature();
         vec3 curvatureToColor(float c)const;
